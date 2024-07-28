@@ -5,6 +5,7 @@ from ctypes import *
 # CAN设备类写法
 from CAN_MSG import VCI_CAN_OBJ
 
+
 class Can_Derive:
     __VCI_USBCAN2 = 4
     __STATUS_OK = 1
@@ -225,6 +226,6 @@ if __name__ == "__main__":
     can_derive.can_init()
     can_derive.can_channel_open()
     for i in range(1, 4):
-        can_derive.can_receive_msg_2()
-        # can_derive.can_receive_msg()
+        # can_derive.can_receive_msg_2()
+        can_derive.can_receive_msg()
     can_derive.can_close()
