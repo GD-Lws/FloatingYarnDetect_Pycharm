@@ -76,7 +76,7 @@ def can_init():
     global can_init_status
     can_init_status = canDLL.VCI_OpenDevice(VCI_USBCAN2, 0, 0)
     if can_init_status == STATUS_OK:
-        print('调用 VCI_OpenDevice成功\r\n')
+        print('CAN设备成功打开\r\n')
     if can_init_status != STATUS_OK:
         can_init_status = STATUS_ERR
         print('调用 VCI_OpenDevice出错\r\n')
@@ -98,13 +98,13 @@ def can_channel_open(channel=0, baud=1000):
         # VCI_InitCAN此函数用以初始化指定的CAN通道。有多个CAN通道时，需要多次调用。
         can_0_init = canDLL.VCI_InitCAN(VCI_USBCAN2, 0, 0, byref(vci_init_config))
         if can_0_init == STATUS_OK:
-            print('调用 VCI_InitCAN1成功\r\n')
+            print('CAN1通道打开正常\r\n')
         if can_0_init != STATUS_OK:
             print('调用 VCI_InitCAN1出错\r\n')
         can_0_start = canDLL.VCI_StartCAN(VCI_USBCAN2, 0, 0)
         if can_0_start == STATUS_OK:
             can_channel_0_status = STATUS_OK
-            print('调用 VCI_StartCAN1成功\r\n')
+            print('CAN1通道开始工作\r\n')
         if can_0_start != STATUS_OK:
             can_channel_0_status = STATUS_ERR
             print('调用 VCI_StartCAN1出错\r\n')
@@ -142,7 +142,7 @@ def can_send_msg(channel=0, send_id=0x01, send_data=[]):
             return STATUS_ERR
         can_0_send_flag = canDLL.VCI_Transmit(VCI_USBCAN2, 0, 0, byref(vci_can_obj), 1)
         if can_0_send_flag == STATUS_OK:
-            print('CAN1通道发送成功\r\n')
+            print('CAN1 Send msg success\r\n')
             return STATUS_SEND_FINISH
         if can_0_send_flag != STATUS_OK:
             print('CAN1通道发送失败\r\n')
