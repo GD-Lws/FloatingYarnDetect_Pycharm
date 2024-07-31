@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>864</width>
-    <height>621</height>
+    <width>853</width>
+    <height>654</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -32,7 +32,7 @@
       </widget>
      </item>
      <item row="17" column="0">
-      <widget class="QLabel" name="label_single_encode">
+      <widget class="QLabel" name="label_exposureTime">
        <property name="text">
         <string>曝光时间</string>
        </property>
@@ -72,7 +72,7 @@
       </widget>
      </item>
      <item row="18" column="0">
-      <widget class="QLabel" name="label_encode_2">
+      <widget class="QLabel" name="label_zoomRatio">
        <property name="text">
         <string>缩放</string>
        </property>
@@ -107,7 +107,7 @@
       </widget>
      </item>
      <item row="14" column="0">
-      <widget class="QLabel" name="label_kp">
+      <widget class="QLabel" name="label_filename">
        <property name="text">
         <string>文件名</string>
        </property>
@@ -190,7 +190,7 @@
       </widget>
      </item>
      <item row="15" column="0">
-      <widget class="QLabel" name="label_ki">
+      <widget class="QLabel" name="label_foucusdistance">
        <property name="text">
         <string>焦距</string>
        </property>
@@ -222,11 +222,8 @@
        </property>
       </widget>
      </item>
-     <item row="3" column="1">
-      <widget class="QSpinBox" name="spinBox_mode"/>
-     </item>
      <item row="4" column="0">
-      <widget class="QPushButton" name="button_readyStatus">
+      <widget class="QPushButton" name="button_GetStatus">
        <property name="text">
         <string>获取状态</string>
        </property>
@@ -236,7 +233,7 @@
       </widget>
      </item>
      <item row="16" column="0">
-      <widget class="QLabel" name="label_kd">
+      <widget class="QLabel" name="label_iso">
        <property name="text">
         <string>感光度</string>
        </property>
@@ -344,6 +341,9 @@
      <item row="18" column="1">
       <widget class="QLineEdit" name="edit_par_ZoomRatio"/>
      </item>
+     <item row="3" column="1">
+      <widget class="QComboBox" name="comboBox_ModeSelect"/>
+     </item>
     </layout>
    </widget>
    <widget class="QGraphicsView" name="GraphView_Image">
@@ -361,13 +361,16 @@
      <rect>
       <x>246</x>
       <y>370</y>
-      <width>361</width>
-      <height>201</height>
+      <width>591</width>
+      <height>221</height>
      </rect>
     </property>
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
-      <widget class="QListView" name="listView_rec"/>
+      <widget class="QListWidget" name="listWidget_rec"/>
+     </item>
+     <item>
+      <widget class="QListWidget" name="listWidget_log"/>
      </item>
     </layout>
    </widget>
@@ -376,15 +379,32 @@
      <rect>
       <x>620</x>
       <y>10</y>
-      <width>216</width>
+      <width>211</width>
       <height>351</height>
      </rect>
     </property>
     <layout class="QGridLayout" name="gridLayout">
-     <item row="2" column="1">
-      <widget class="QLabel" name="label_mode_select_2">
+     <item row="2" column="3">
+      <widget class="QPushButton" name="button_knit_info">
        <property name="text">
-        <string>编织信息</string>
+        <string>编织信息获取</string>
+       </property>
+       <property name="default">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1">
+      <widget class="QLabel" name="label_roirange_3">
+       <property name="text">
+        <string>机器型号</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="3">
+      <widget class="QLineEdit" name="edit_machine_vel_info">
+       <property name="text">
+        <string/>
        </property>
       </widget>
      </item>
@@ -395,61 +415,17 @@
        </property>
       </widget>
      </item>
-     <item row="2" column="2">
-      <widget class="QPushButton" name="button_knit_info">
-       <property name="text">
-        <string>编织信息获取</string>
-       </property>
-       <property name="default">
-        <bool>false</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="2">
-      <widget class="QLineEdit" name="edit_machine_vel_info">
-       <property name="text">
-        <string/>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="2">
-      <widget class="QLineEdit" name="edit_knit_file_info">
-       <property name="text">
-        <string/>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="2">
-      <widget class="QPushButton" name="button_driver_disconnect">
-       <property name="text">
-        <string>设备断开</string>
-       </property>
-       <property name="default">
-        <bool>false</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="6" column="2">
-      <widget class="QLineEdit" name="edit_roiRange1_y2_2">
-       <property name="text">
-        <string/>
-       </property>
-      </widget>
-     </item>
-     <item row="5" column="2">
+     <item row="5" column="3">
       <widget class="QLineEdit" name="edit_knit_roll">
        <property name="text">
         <string/>
        </property>
       </widget>
      </item>
-     <item row="0" column="1">
-      <widget class="QPushButton" name="button_driver_connect">
+     <item row="4" column="3">
+      <widget class="QLineEdit" name="edit_knit_file_info">
        <property name="text">
-        <string>设备连接</string>
-       </property>
-       <property name="default">
-        <bool>false</bool>
+        <string/>
        </property>
       </widget>
      </item>
@@ -467,37 +443,51 @@
        </property>
       </widget>
      </item>
-     <item row="3" column="1">
-      <widget class="QLabel" name="label_roirange_3">
+     <item row="2" column="1">
+      <widget class="QLabel" name="label_mode_select_2">
        <property name="text">
-        <string>机器型号</string>
+        <string>编织信息</string>
        </property>
       </widget>
      </item>
-     <item row="1" column="2">
-      <widget class="QSpinBox" name="spinBox_can_baudRate"/>
+     <item row="6" column="3">
+      <widget class="QLineEdit" name="edit_roiRange1_y2_2">
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
      </item>
      <item row="1" column="1">
-      <widget class="QPushButton" name="button_can_baudRateSet">
+      <widget class="QPushButton" name="button_driver_connect">
        <property name="text">
-        <string>CAN波特率设置</string>
+        <string>设备连接</string>
        </property>
        <property name="default">
         <bool>false</bool>
        </property>
       </widget>
      </item>
+     <item row="1" column="3">
+      <widget class="QPushButton" name="button_driver_disconnect">
+       <property name="text">
+        <string>设备断开</string>
+       </property>
+       <property name="default">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="3">
+      <widget class="QComboBox" name="comboBox_baudRate"/>
+     </item>
+     <item row="0" column="1">
+      <widget class="QLabel" name="label_baudRate">
+       <property name="text">
+        <string>CAN波特率选择</string>
+       </property>
+      </widget>
+     </item>
     </layout>
-   </widget>
-   <widget class="QListView" name="listView_send">
-    <property name="geometry">
-     <rect>
-      <x>625</x>
-      <y>378</y>
-      <width>211</width>
-      <height>191</height>
-     </rect>
-    </property>
    </widget>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
@@ -506,7 +496,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>864</width>
+     <width>853</width>
      <height>26</height>
     </rect>
    </property>

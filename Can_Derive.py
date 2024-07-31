@@ -75,9 +75,9 @@ class Can_Derive:
         # VCI_OpenDevice打开设备
         self.__can_init_status = self.__canDLL.VCI_OpenDevice(self.__VCI_USBCAN2, 0, 0)
         if self.__can_init_status == self.__STATUS_OK:
-            print('调用 VCI_OpenDevice成功\r\n')
+            print('Can设备打开成功\r\n')
         if self.__can_init_status != self.__STATUS_OK:
-            self.__can_init_status = self.__STATUS_OK
+            self.__can_init_status = self.__STATUS_ERR
             print('调用 VCI_OpenDevice出错\r\n')
 
     def can_channel_open(self, channel=0, baud=1000):
@@ -95,14 +95,17 @@ class Can_Derive:
             # VCI_InitCAN此函数用以初始化指定的CAN通道。有多个CAN通道时，需要多次调用。
             can_0_init = self.__canDLL.VCI_InitCAN(self.__VCI_USBCAN2, 0, 0, byref(vci_init_config))
             if can_0_init == self.__STATUS_OK:
-                print('调用 VCI_InitCAN1成功\r\n')
+                print('CAN通道初始成功')
+                print('波特率设置为')
+                print(baud)
+                print('\r\n')
             if can_0_init != self.__STATUS_OK:
                 print('调用 VCI_InitCAN1出错\r\n')
                 return self.__STATUS_ERR
             can_0_start = self.__canDLL.VCI_StartCAN(self.__VCI_USBCAN2, 0, 0)
             if can_0_start == self.__STATUS_OK:
                 self.__can_channel_0_status = self.__STATUS_OK
-                print('调用 VCI_StartCAN1成功\r\n')
+                print('CAN通道打开成功\r\n')
                 return self.__STATUS_OK
             if can_0_start != self.__STATUS_OK:
                 self.__can_channel_0_status = self.__STATUS_ERR
@@ -113,6 +116,7 @@ class Can_Derive:
             can_1_init = self.__canDLL.VCI_InitCAN(self.__VCI_USBCAN2, 0, 1, byref(vci_init_config))
             if can_1_init == self.__STATUS_OK:
                 print('调用 VCI_InitCAN2 成功\r\n')
+
             if can_1_init != self.__STATUS_OK:
                 print('调用 VCI_InitCAN2 出错\r\n')
                 return self.__STATUS_ERR
@@ -126,11 +130,18 @@ class Can_Derive:
                 print('调用 VCI_StartCAN2 出错\r\n')
                 return self.__STATUS_ERR
 
+    def check_CAN_STATUS(self):
+        if self.__can_init_status == self.__STATUS_ERR:
+            return False
+        if self.__can_channel_0_status == self.__STATUS_ERR:
+            return False
+        return True
+
     # 关闭CAN
     def can_close(self):
         self.__canDLL.VCI_CloseDevice(self.__VCI_USBCAN2, 0)
         self.__can_init_status = self.__STATUS_ERR
-        print("关闭设备")
+        print("关闭CAN设备")
 
     def can_send_msg(self, channel=0, send_id=0x01):
         if self.__can_init_status == self.__STATUS_ERR:
@@ -217,7 +228,7 @@ class Can_Derive:
         print(self.__send_data)
         return self.__send_data
 
-    def get_can_derive_status(self):
+    def getCanNowStatus(self):
         return self.__can_init_status
 
 

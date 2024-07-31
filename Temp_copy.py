@@ -10,12 +10,12 @@
 # from Can_Derive import Can_Derive
 #
 #
-# def compare_arr_ctypes_(input_arr, target_arr):
-#     arrTarget_int = [int(x) for x in input_arr]
-#     for i in range(8):
-#         if arrTarget_int[i] != input_arr[i]:
-#             return False
-#     return True
+def compare_arr_ctypes_(input_arr, target_arr):
+    arrTarget_int = [int(x) for x in input_arr]
+    for i in range(8):
+        if arrTarget_int[i] != input_arr[i]:
+            return False
+    return True
 #
 #
 # class ReceiveThread(QThread):
@@ -35,18 +35,18 @@
 # class FloatingYarn(Can_Derive, QObject):
 #     data_received = pyqtSignal(list)
 #
-#     class MachineStatus(Enum):
-#         Close = 0
-#         Open = 1
-#         Ready = 2
-#         Activate = 3
-#         Edit = 4
-#         PIC = 5
-#
-#     class MachineOperate(Enum):
-#         Detect = 0
-#         Compare = 1
-#         Record = 2
+    # class MachineStatus(Enum):
+    #     Close = 0
+    #     Open = 1
+    #     Ready = 2
+    #     Activate = 3
+    #     Edit = 4
+    #     PIC = 5
+    #
+    # class MachineOperate(Enum):
+    #     Detect = 0
+    #     Compare = 1
+    #     Record = 2
 #
     def __init__(self, win_linux=1, send_id=0x141, max_messages=10000):
         super().__init__()  # Initialize QObject
@@ -67,21 +67,21 @@
         self.__recMsgFinishIndex = 0
         self.output_path = 'rec_txt/output_image.jpg'
 
-#     def fy_receive_image(self):
-#         if self.check_status():
-#             if self.__selfStatus == self.MachineStatus.Ready:
-#                 rec_flag, rec_msg = self.send_and_wait_for_response(self.StdData.arrRE2PC, ack_flag=True)
-#                 if compare_arr_ctypes_(input_arr=rec_msg, target_arr=self.StdData.arrPCO):
-#                     self.fy_sendData(self.StdData.arrSTA)
-#                     return True
-#                 elif compare_arr_ctypes_(input_arr=rec_msg, target_arr=self.StdData.arrPCC):
-#                     self.fy_receive_image()
-#                     return True
-#             elif self.__selfStatus == self.MachineStatus.PIC:
-#                 self.fy_sendData(self.StdData.arrSTA)
-#                 return True
-#         else:
-#             return False
+    def fy_receive_image(self):
+        if self.check_status():
+            if self.__selfStatus == self.MachineStatus.Ready:
+                rec_flag, rec_msg = self.send_and_wait_for_response(self.StdData.arrRE2PC, ack_flag=True)
+                if compare_arr_ctypes_(input_arr=rec_msg, target_arr=self.StdData.arrPCO):
+                    self.fy_sendData(self.StdData.arrSTA)
+                    return True
+                elif compare_arr_ctypes_(input_arr=rec_msg, target_arr=self.StdData.arrPCC):
+                    self.fy_receive_image()
+                    return True
+            elif self.__selfStatus == self.MachineStatus.PIC:
+                self.fy_sendData(self.StdData.arrSTA)
+                return True
+        else:
+            return False
 #
 #     def on_data_received(self, data_list):
 #         # Slot to handle received data
@@ -92,16 +92,16 @@
 #         self.received_messages.append(data_list)
 #         self.data_received.emit(data_list)  # 发送信号
 #
-#     def detect_SpecificCharacters(self, data_list):
-#         if self.__recMsgFinishIndex == 8:
-#             self.__recMsgFinishIndex = 0
-#             self.__recImage_Flag = False
-#             return
-#         for data in data_list:
-#             if data == self.StdData.arrMSG_FINISH[self.__recMsgFinishIndex]:
-#                 self.__recMsgFinishIndex = self.__recMsgFinishIndex + 1
-#             else:
-#                 self.__recMsgFinishIndex = 0
+    def detect_SpecificCharacters(self, data_list):
+        if self.__recMsgFinishIndex == 8:
+            self.__recMsgFinishIndex = 0
+            self.__recImage_Flag = False
+            return
+        for data in data_list:
+            if data == self.StdData.arrMSG_FINISH[self.__recMsgFinishIndex]:
+                self.__recMsgFinishIndex = self.__recMsgFinishIndex + 1
+            else:
+                self.__recMsgFinishIndex = 0
 #
 #     def start_receiving(self, channel=0):
 #         # 启动接收线程（如果还没启动的话）
@@ -175,40 +175,40 @@
     #         print("Failed to receive message.")
     #         return False
 #
-#     def trans_status(self, target_status):
-#         if self.check_status():
-#             if self.__selfStatus == self.MachineStatus.Ready:
-#                 if target_status == self.MachineStatus.Ready:
-#                     return 1
-#                 elif target_status == self.MachineStatus.PIC:
-#                     self.change_send_data(self.StdData.arrRE2PC)
-#                 elif target_status == self.MachineStatus.Edit:
-#                     self.change_send_data(self.StdData.arrRE2ED)
-#                 elif target_status == self.MachineStatus.Activate:
-#                     self.change_send_data(self.StdData.arrRE2AC)
-#                 else:
-#                     return -1
-#             elif self.__selfStatus == self.MachineStatus.Edit:
-#                 if target_status == self.MachineStatus.Ready:
-#                     self.change_send_data(self.StdData.arrBA2RE)
-#                 else:
-#                     return -1
-#             elif self.__selfStatus == self.MachineStatus.Activate:
-#                 if target_status == self.MachineStatus.Ready:
-#                     self.change_send_data(self.StdData.arrBA2RE)
-#                 else:
-#                     return -1
-#             elif self.__selfStatus == self.MachineStatus.PIC:
-#                 if target_status == self.MachineStatus.Ready:
-#                     self.change_send_data(self.StdData.arrBA2RE)
-#                 else:
-#                     return -1
-#             elif self.__selfStatus == self.MachineStatus.Open:
-#                 if target_status == self.MachineStatus.Ready:
-#                     self.change_send_data(self.StdData.arrOP2RE)
-#                 else:
-#                     return -1
-#             self.can_send_msg(send_id=self.canID)
-#             return 1
-#         else:
-#             return -2
+    def trans_status(self, target_status):
+        if self.check_status():
+            if self.__selfStatus == self.MachineStatus.Ready:
+                if target_status == self.MachineStatus.Ready:
+                    return 1
+                elif target_status == self.MachineStatus.PIC:
+                    self.change_send_data(self.StdData.arrRE2PC)
+                elif target_status == self.MachineStatus.Edit:
+                    self.change_send_data(self.StdData.arrRE2ED)
+                elif target_status == self.MachineStatus.Activate:
+                    self.change_send_data(self.StdData.arrRE2AC)
+                else:
+                    return -1
+            elif self.__selfStatus == self.MachineStatus.Edit:
+                if target_status == self.MachineStatus.Ready:
+                    self.change_send_data(self.StdData.arrBA2RE)
+                else:
+                    return -1
+            elif self.__selfStatus == self.MachineStatus.Activate:
+                if target_status == self.MachineStatus.Ready:
+                    self.change_send_data(self.StdData.arrBA2RE)
+                else:
+                    return -1
+            elif self.__selfStatus == self.MachineStatus.PIC:
+                if target_status == self.MachineStatus.Ready:
+                    self.change_send_data(self.StdData.arrBA2RE)
+                else:
+                    return -1
+            elif self.__selfStatus == self.MachineStatus.Open:
+                if target_status == self.MachineStatus.Ready:
+                    self.change_send_data(self.StdData.arrOP2RE)
+                else:
+                    return -1
+            self.can_send_msg(send_id=self.canID)
+            return 1
+        else:
+            return -2
