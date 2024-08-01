@@ -205,7 +205,7 @@ class Can_Derive:
             else:
                 receive_flag = self.__canDLL.VCI_Receive(self.__VCI_USBCAN2, 0, 1, byref(rx_vci_can_obj.ADDR), 2500, 0)
         if receive_flag > 0:
-            for i in range(0, 10):
+            for i in range(0, receive_flag):
                 if rx_vci_can_obj.STRUCT_ARRAY[i].ID != 0:
                     self.receiving_msg_processing(rx_vci_can_obj.STRUCT_ARRAY[i])
                 else:

@@ -1,4 +1,6 @@
+import binascii
 from collections import deque
+from ctypes import byref
 from enum import Enum
 
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject, QThread, QMutex, QTimer, QWaitCondition, QMutexLocker, \
@@ -110,36 +112,80 @@ class FloatingYarn(Can_Derive, QObject):
     # 检查结束符号
     def detectSpecificCharacters(self, data_list, target_list):
         msg_finish_set = set(target_list)
-        # 使用滑动窗口方法
-        finish_count = 0  # 用于记录当前匹配的序列长度
+        target_len = len(target_list)
+        finish_count = 0  # 当前匹配的序列长度
 
         for data in data_list:
             if data in msg_finish_set:
+                # 只有当数据匹配目标序列的当前索引时才进行处理
                 if data == target_list[finish_count]:
                     finish_count += 1
-                    # 如果已完成所有匹配，重置
-                    if finish_count == len(target_list):
+                    # 如果完成了整个序列的匹配
+                    if finish_count == target_len:
                         self.__recMsgFinishIndex = 0
-                        self.received_image_flag = False
-                        self.fyCanSendData(self.StdData.arrEND)
-
-                        self.stop_processing_thread()  # 停止处理线程
-                        print("图片接收完成")
+                        if self.received_image_flag:
+                            self.received_image_flag = False
+                            self.fyCanSendData(self.StdData.arrEND)
+                            self.stop_processing_thread()  # 停止处理线程
+                            print("图片接收完成")
+                            self.dequeToImage()  # 转换数据为图片
+                        # 终止当前检查，避免继续不必要的检查
+                        return True
                 else:
-                    # 如果匹配失败，重置匹配计数
+                    # 匹配失败，重置计数
                     finish_count = 0
             else:
+                # 数据不在目标序列中，重置计数
                 finish_count = 0
+        return False
 
     def dequeToImage(self):
-        pass
+        print(len(self.received_image_arr))
+        image_array = bytearray()  # 使用 bytearray 存储数据
+        hex_str = ''
+        # 处理起始标识符
+        while True:
+            if not self.received_image_arr:
+                print("没有找到起始标识符数组")
+                return False
+
+            data_list = self.received_image_arr.popleft()
+
+            # 调用 detectSpecificCharacters 并检查是否找到 target_list
+            if self.detectSpecificCharacters(data_list, target_list=[0, 1, 2, 3, 4, 5, 6, 7]):
+                print("找到起始标识符数组")
+                break  # 如果找到 target_list，退出循环
+        end_array = self.received_image_arr[-1]
+        # 处理图像数据
+        while True:
+            if not self.received_image_arr:
+                print("图像数据处理完成")
+                break  # 如果 deque 为空，退出循环
+
+            data_list = self.received_image_arr.popleft()
+            # 将 data_list 中的每个字节直接追加到 image_array
+            for dec_data in data_list:
+                hex_str = hex_str + hex(dec_data)[2:].upper() + " "
+
+        output_file_path = 'rec_txt/hex_output.txt'
+        with open(output_file_path, 'w') as file:
+            file.write(hex_str.strip())  # 使用 strip() 去掉最后多余的空格
+
+        print(f'Hex string saved to {output_file_path}')
+        # 保存为图片
+        # byte_array = binascii.unhexlify(hex_str)
+        # output_image_path = 'rec_txt/output_image.jpg'
+        # with open(output_image_path, 'wb') as image_file:
+        #     image_file.write(byte_array)
+        #
+        # print(f'图像已保存到 {output_image_path}')
 
     def receiving_msg_processing(self, vci_can_obj):
         data_list = list(vci_can_obj.Data)
         with QMutexLocker(self.mutex):  # 确保线程安全
             if self.received_image_flag:
+                # print(data_list)  # 直接输出接收到的数据
                 self.received_image_arr.append(data_list)
-                print(data_list)  # 直接输出接收到的数据
                 if not self.processor_thread:
                     self.start_processing_thread()  # 开始处理线程
             else:
@@ -239,10 +285,11 @@ class FloatingYarn(Can_Derive, QObject):
                     if self.checkSlaveStatus():
                         if self.__selfStatus == self.MachineStatus.PIC:
                             print('下位机状态已经是PIC')
-                            self.received_image_flag = True
-                            self.received_image_arr.clear()
+                            # self.received_image_arr.clear()
                             self.__recMsgFinishIndex = 0
                             self.fyDelaySendData(self.StdData.arrSTA, delay_time=1000)
+                            self.received_image_flag = True
+
                             return True
                         else:
                             return False
@@ -346,9 +393,10 @@ class CanProcessorThread(QThread):
                     break
 
                 if self.floating_yarn.received_image_arr:
-                    data_list = self.floating_yarn.received_image_arr.popleft()
+                    data_list = self.floating_yarn.received_image_arr[-1]
                     if data_list:
-                        self.floating_yarn.detectSpecificCharacters(data_list=data_list, target_list=[8, 9, 10, 11, 12, 13, 14, 15])
+                        self.floating_yarn.detectSpecificCharacters(data_list=data_list,
+                                                                    target_list=[8, 9, 10, 11, 12, 13, 14, 15])
 
 
 def showErrorDialog(parent, msg):
