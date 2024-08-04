@@ -27,18 +27,24 @@ def main():
     column_name = 'Data'
 
     # 对 'Data' 列应用 HEX 解析函数
-    df['HEX_Data'] = df[column_name].apply(hex_parse)
+    # df['HEX_Data'] = df[column_name].apply(hex_parse)
+    df['ASCII_Data'] = df[column_name].apply(ascii_parse)
 
     # 写入到 txt 文件
     output_file = 'output.txt'
 
-    with open(output_file, 'w') as f:
-        for index, row in df.iterrows():
-            # 将 HEX 数据列表转换为用空格分隔的字符串
-            hex_str = ' '.join(row['HEX_Data'])
-            f.write(f"{hex_str}" + " ")  # 每行数据写入文件后加上换行符
+    # with open(output_file, 'w') as f:
+    #     for index, row in df.iterrows():
+    #         # 将 HEX 数据列表转换为用空格分隔的字符串
+    #         hex_str = ' '.join(row['HEX_Data'])
+    #         f.write(f"{hex_str}" + " ")  # 每行数据写入文件后加上换行符
+    #
+    # print(f"解析结果已写入到文件: {output_file}")
 
-    print(f"解析结果已写入到文件: {output_file}")
+    output_image_path = 'rec_txt/output_image.jpg'
+    with open(output_image_path, 'wb') as image_file:
+        for ascii_str in df['ASCII_Data']:
+            image_file.write(ascii_str)  # 将字符串转换为字节写入文件
 
 
 if __name__ == "__main__":
