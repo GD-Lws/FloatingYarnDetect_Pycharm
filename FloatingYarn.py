@@ -1,15 +1,12 @@
-import binascii
 from collections import deque
-from ctypes import byref
 from enum import Enum
 
-from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject, QThread, QMutex, QTimer, QWaitCondition, QMutexLocker, \
-    QEventLoop
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject, QThread, QMutex, QTimer, QWaitCondition, QMutexLocker
 from PyQt5.QtWidgets import QApplication, QWidget, QListWidget, QVBoxLayout, QTextEdit, QPushButton, QMainWindow, \
     QMessageBox
 
-from CANMessageData import CANMessageData
-from Can_Derive import Can_Derive
+from CAN_TOOL.CANMessageData import CANMessageData
+from CAN_TOOL.Can_Derive import Can_Derive
 import sys
 from datetime import datetime
 
@@ -173,12 +170,12 @@ class FloatingYarn(Can_Derive, QObject):
 
         print(f'Hex string saved to {output_file_path}')
         # 保存为图片
-        # byte_array = binascii.unhexlify(hex_str)
-        # output_image_path = 'rec_txt/output_image.jpg'
-        # with open(output_image_path, 'wb') as image_file:
-        #     image_file.write(byte_array)
-        #
-        # print(f'图像已保存到 {output_image_path}')
+        byte_array = binascii.unhexlify(hex_str)
+        output_image_path = 'rec_txt/output_image.jpg'
+        with open(output_image_path, 'wb') as image_file:
+            image_file.write(byte_array)
+
+        print(f'图像已保存到 {output_image_path}')
 
     def receiving_msg_processing(self, vci_can_obj):
         data_list = list(vci_can_obj.Data)

@@ -34,11 +34,11 @@ def receive_image_from_serial(port, baudrate=115200, timeout=1, max_wait_time=10
     print(f"Data received in {elapsed_time:.2f} seconds")
 
     # 将接收到的字节数组保存为JPEG文件
-    with open("received_image.jpg", "wb") as f:
+    with open("Picture/received_image.jpg", "wb") as f:
         f.write(jpeg_data)
 
     # 打开并显示图像
-    img = Image.open("received_image.jpg")
+    img = Image.open("Picture/received_image.jpg")
     img.show()
 
 

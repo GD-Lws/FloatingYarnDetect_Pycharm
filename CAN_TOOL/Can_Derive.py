@@ -3,7 +3,7 @@ import ctypes
 from ctypes import *
 
 # CAN设备类写法
-from CAN_MSG import VCI_CAN_OBJ
+from CAN_TOOL.CAN_MSG import VCI_CAN_OBJ
 
 
 class Can_Derive:

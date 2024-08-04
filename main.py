@@ -1,6 +1,9 @@
 import sys
 
-from PyQt5.QtWidgets import QApplication, QMainWindow
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import QApplication, QMainWindow, QGraphicsPixmapItem, QGraphicsScene
+from pyqt5_plugins.examplebutton import QtWidgets
+
 import candriver_layout
 from FloatingYarn import FloatingYarn
 
@@ -31,9 +34,12 @@ class MainWindow:
         # 初始化 UI 管理器并设置连接
         self.ui_manager = candriver_layout.Ui_MainWindow()
         self.ui_manager.setupUi(self.MainWindow)
-        # self.printer = ListWidgetPrinter(self.ui_manager.listWidget_log)
-        # sys.stdout = self.printer  # 重定向 print 到 ListWidgetPrinter
+        self.printer = ListWidgetPrinter(self.ui_manager.listWidget_log)
+        sys.stdout = self.printer  # 重定向 print 到 ListWidgetPrinter
         self.uiConnectInit()
+        self.scene = QtWidgets.QGraphicsScene()
+        self.ui_manager.GraphView_Image.setScene(self.scene)
+        self.load_image_from_current_directory('Picture/Float.png')
 
     def run(self):
         self.MainWindow.show()
@@ -54,6 +60,10 @@ class MainWindow:
     # 将接收到的数据添加到列表
     def displayRecMessage(self, msg):
         self.ui_manager.listWidget_rec.addItem(msg)
+        # for i in range(0, 200):
+        #     self.ui_manager.listWidget_rec.addItem('0')
+        # for i in range(0, 2):
+        #     self.ui_manager.listWidget_rec.addItem('1')
 
     def uiConnectInit(self):
         self.uiComboBoxInit()
@@ -63,6 +73,18 @@ class MainWindow:
         self.floating_yarn.message_received.connect(self.displayRecMessage)
         self.ui_manager.button_GetStatus.clicked.connect(self.floating_yarn.checkSlaveStatus)
 
+    def load_image_from_current_directory(self, image_path):
+        # 构造图片的相对路径
+        # 加载图片
+        pixmap = QPixmap(image_path)
+        if pixmap.isNull():
+            print(f"Failed to load image from {image_path}")
+            return
+
+        # 在场景中添加图片
+        pixmap_item = QGraphicsPixmapItem(pixmap)
+        self.scene.clear()  # 清除之前的内容
+        self.scene.addItem(pixmap_item)  # 添加新图片
 
 if __name__ == "__main__":
     main_window = MainWindow()
