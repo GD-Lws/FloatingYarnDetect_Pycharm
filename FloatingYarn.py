@@ -1,3 +1,5 @@
+import binascii
+import ctypes
 from collections import deque
 from enum import Enum
 
@@ -9,6 +11,22 @@ from CAN_TOOL.CANMessageData import CANMessageData
 from CAN_TOOL.Can_Derive import Can_Derive
 import sys
 from datetime import datetime
+from FYCanThread import FYCanThread
+
+
+def cameraParamter2CtypeArray(value_str, length=5):
+    # 创建 ctypes 数组
+    ctype_array = (ctypes.c_uint8 * length)()
+    # 计算填充字节
+    padding = length - len(value_str)
+    # 填充前面的 0x00
+    for i in range(padding):
+        ctype_array[i] = 0x30
+    # 填充实际的 ASCII 字符
+    for i, char in enumerate(value_str):
+        if i + padding < length:
+            ctype_array[i + padding] = ord(char)
+    return ctype_array
 
 
 def list_to_str(input_list):
@@ -51,13 +69,15 @@ def on_timeout():
 
 
 class FloatingYarn(Can_Derive, QObject):
-    message_received = pyqtSignal(str)
+    messageReceived = pyqtSignal(str)
+    statusUpdated = pyqtSignal(str, str)
+    imageProcess = pyqtSignal()
 
     class MachineStatus(Enum):
         Close = 0
         Open = 1
         Ready = 2
-        Activate = 3
+        Activity = 3
         Edit = 4
         PIC = 5
 
@@ -66,7 +86,8 @@ class FloatingYarn(Can_Derive, QObject):
         Compare = 1
         Record = 2
 
-    def __init__(self, win_linux=1, Can_id=0x141, max_messages=10000):
+    def __init__(self, win_linux=1, Can_id=0x141, max_messages=10000,
+                 temp_photo_storage_path='rec_txt/output_image.jpg'):
         QObject.__init__(self)
         Can_Derive.__init__(self, win_linux=win_linux)
 
@@ -78,9 +99,12 @@ class FloatingYarn(Can_Derive, QObject):
         self.__selfOperateMode = self.MachineOperate.Detect
         self.__canID = Can_id
         self.__canBaudRate = 1000
+        self.__canStatus = False
+
         self.__recMsgFinishIndex = 0
         self.__msgFinishArray = [8, 9, 10, 11, 12, 13, 14, 15]
         self.__msgStartArray = [0, 1, 2, 3, 4, 5, 6, 7]
+        self.__imageSavePath = temp_photo_storage_path
 
         # 启动接收线程
         self.wait_condition = QWaitCondition()
@@ -91,21 +115,49 @@ class FloatingYarn(Can_Derive, QObject):
         self.receiver_thread.set_floating_yarn(self)
         self.receiver_thread.start()
 
+        # 用于数据接收处理线程
         self.processor_thread = None
+        # 用于持续发送当前编织行数
+        self.__knit_row = 0
+        self.sendKnit_thread = None
 
-    def start_processing_thread(self):
-        # 启动处理线程
-        self.processor_thread = CanProcessorThread(wait_condition=self.wait_condition, mutex=self.mutex)
-        self.processor_thread.set_floating_yarn(self)
-        self.processor_thread.start()
+    def start_processing_thread(self, thread_index):
+        if thread_index == 0:
+            if self.processor_thread is None:
+                # 启动处理线程
+                self.processor_thread = CanProcessorThread(wait_condition=self.wait_condition, mutex=self.mutex)
+                self.processor_thread.set_floating_yarn(self)
+                self.processor_thread.start()
+            else:
+                print("processing thread is running!")
+        elif thread_index == 1:
+            if self.sendKnit_thread is None:
+                self.sendKnit_thread = KnitSendThread(wait_condition=self.wait_condition, mutex=self.mutex)
+                self.sendKnit_thread.set_floating_yarn(self)
+                self.sendKnit_thread.start()
+            else:
+                print("sendKnit_thread is running!")
+        else:
+            print("thread index error!")
 
-    def stop_processing_thread(self):
-        if self.processor_thread is not None:
-            self.processor_thread.requestInterruption()  # 触发线程停止
-            self.processor_thread.wait()  # 等待线程结束
-            self.processor_thread = None
+    def stop_processing_thread(self, thread_index):
+        if thread_index == 0:
+            if self.processor_thread is not None:
+                self.processor_thread.requestInterruption()  # 触发线程停止
+                self.processor_thread.wait()  # 等待线程结束
+                self.processor_thread = None
+            else:
+                print("processing thread is running!")
+        elif thread_index == 1:
+            if self.sendKnit_thread is not None:
+                self.sendKnit_thread.requestInterruption()  # 触发线程停止
+                self.sendKnit_thread.wait()  # 等待线程结束
+                self.sendKnit_thread = None
+            else:
+                print("sendKnit_thread is running!")
+        else:
+            print("thread index error!")
 
-    # 检查结束符号
     # 检查结束符号
     def detectSpecificCharacters(self, data_list, target_list):
         msg_finish_set = set(target_list)
@@ -122,10 +174,10 @@ class FloatingYarn(Can_Derive, QObject):
                         self.__recMsgFinishIndex = 0
                         if self.received_image_flag:
                             self.received_image_flag = False
-                            self.fyCanSendData(self.StdData.arrEND)
-                            self.stop_processing_thread()  # 停止处理线程
+                            self.stop_processing_thread(0)  # 停止处理线程
                             print("图片接收完成")
                             self.dequeToImage()  # 转换数据为图片
+                            self.fyCanSendData(self.StdData.arrEND)
                         # 终止当前检查，避免继续不必要的检查
                         return True
                 else:
@@ -153,30 +205,21 @@ class FloatingYarn(Can_Derive, QObject):
                 print("找到起始标识符数组")
                 break  # 如果找到 target_list，退出循环
         end_array = self.received_image_arr[-1]
+        end_array = self.received_image_arr.pop()
         # 处理图像数据
-        while True:
-            if not self.received_image_arr:
-                print("图像数据处理完成")
-                break  # 如果 deque 为空，退出循环
-
-            data_list = self.received_image_arr.popleft()
+        while self.received_image_arr:
+            data_list = self.received_image_arr.popleft()  # 从左边弹出
             # 将 data_list 中的每个字节直接追加到 image_array
-            for dec_data in data_list:
-                hex_str = hex_str + hex(dec_data)[2:].upper() + " "
+            image_array.extend(data_list)  # 将字节追加到 bytearray
 
-        output_file_path = 'rec_txt/hex_output.txt'
-        with open(output_file_path, 'w') as file:
-            file.write(hex_str.strip())  # 使用 strip() 去掉最后多余的空格
-
-        print(f'Hex string saved to {output_file_path}')
-        # 保存为图片
-        byte_array = binascii.unhexlify(hex_str)
-        output_image_path = 'rec_txt/output_image.jpg'
+        output_image_path = self.__imageSavePath
         with open(output_image_path, 'wb') as image_file:
-            image_file.write(byte_array)
+            image_file.write(image_array)
 
         print(f'图像已保存到 {output_image_path}')
+        self.imageProcess.emit()
 
+    # 接收数据处理
     def receiving_msg_processing(self, vci_can_obj):
         data_list = list(vci_can_obj.Data)
         with QMutexLocker(self.mutex):  # 确保线程安全
@@ -184,25 +227,28 @@ class FloatingYarn(Can_Derive, QObject):
                 # print(data_list)  # 直接输出接收到的数据
                 self.received_image_arr.append(data_list)
                 if not self.processor_thread:
-                    self.start_processing_thread()  # 开始处理线程
+                    self.start_processing_thread(0)  # 开始处理线程
             else:
                 self.received_messages.append(data_list)
                 self.wait_condition.wakeAll()  # 唤醒等待的线程
                 # 发射信号，确保在主线程中
-                self.message_received.emit(list_to_str(data_list))
+                self.messageReceived.emit(list_to_str(data_list))
 
     # CAN关启动
     def fyCanOpen(self, canBaud=1000):
         self.can_init()
         self.can_channel_open(baud=canBaud)
         if self.check_CAN_STATUS():
+            self.__canStatus = True
             return True
         else:
+            self.__canStatus = False
             return False
 
     # CAN关闭
     def fyCanClose(self):
         self.can_close()
+        self.__canStatus = False
 
     # 下位机运行状态检查
     def checkSlaveStatus(self):
@@ -213,7 +259,7 @@ class FloatingYarn(Can_Derive, QObject):
             elif rec_msg[2] == 50:
                 self.__selfStatus = self.MachineStatus.Ready
             elif rec_msg[2] == 51:
-                self.__selfStatus = self.MachineStatus.Activate
+                self.__selfStatus = self.MachineStatus.Activity
             elif rec_msg[2] == 52:
                 self.__selfStatus = self.MachineStatus.Edit
             elif rec_msg[2] == 53:
@@ -228,6 +274,7 @@ class FloatingYarn(Can_Derive, QObject):
                 self.__selfOperateMode = self.MachineOperate.Record
             print('当前下位机运行状态')
             print(self.__selfStatus)
+            self.statusUpdated.emit(str(self.__selfStatus), str(self.__selfOperateMode))
             return True
         else:
             print("Failed to receive message.")
@@ -237,15 +284,14 @@ class FloatingYarn(Can_Derive, QObject):
         self.change_send_data(send_data)
         self.can_send_msg()
 
-    def fyDelaySendData(self, msg, delay_time=10):
+    def fyDelaySendData(self, msg, delay_time=100):
         QTimer.singleShot(delay_time, lambda: self.fyCanSendData(msg))
 
         # 发送数据并等待接收
 
-    def fySendDataAndWait(self, message, timeout_ms=50000):
+    def fySendDataAndWait(self, message, timeout_ms=5000):
         """发送数据并等待接收，带超时机制"""
         self.fyCanSendData(message)
-
         # 设置超时机制
         timer = QTimer()
         timer.setSingleShot(True)
@@ -268,33 +314,117 @@ class FloatingYarn(Can_Derive, QObject):
 
         # 返回接收到的数据和成功标志
         if self.received_messages:
-            return self.received_messages[-1], True
+            data_rec = self.received_messages[-1]
+            # err_flag = True
+            # err_arr = [0x45, 0x72, 0x72]
+            # for i in range(3):
+            #     if data_rec[i] != err_arr[i]:
+            #         err_flag = False
+            # if err_flag:
+            return data_rec, True
         else:
             return None, False
 
-    def fy_receive_image(self):
+    def fySetCameraParameter(self, parameter_array, parameter_index):
+        num_array = [0x00, 0x31, 0x32, 0x33, 0x34]
+        print(f'Value parameter_array: {[hex(x) for x in parameter_array]}')
         if self.checkSlaveStatus():
             if self.__selfStatus == self.MachineStatus.Ready:
-                rec_msg, rec_flag = self.fySendDataAndWait(message=self.StdData.arrRE2PC)
+                rec_msg, rec_flag = self.fySendDataAndWait(message=self.StdData.arrRE2ED)
+                if rec_flag:
+                    self.fySetCameraParameter(parameter_array, parameter_index)
+                return True
+            elif self.__selfStatus == self.MachineStatus.Edit:
+                if parameter_index < 5:
+                    sendMsg = self.StdData.arrS2ROI1
+                    sendMsg[5] = num_array[parameter_index]
+                elif 4 <= parameter_index <= 8:
+                    sendMsg = self.StdData.arrS2CAM1
+                    sendMsg[5] = num_array[parameter_index - 4]
+                else:
+                    sendMsg = None  # 处理不符合条件的情况，避免未定义行为
+                # 发送消息或进一步处理 sendMsg
+
+                if sendMsg is not None:
+                    if parameter_index == 1:
+                        self.fyCanSendData(sendMsg)
+                    self.fySecondMessage(msg=parameter_array)
+                else:
+                    return False
+            else:
+                showErrorDialog(None, 'Machine Status Error.')
+        else:
+            return False
+
+    def fySecondMessage(self, msg):
+        # 延迟调用 fySendDelayAndWaitACK 方法
+        QTimer.singleShot(10, lambda: self.fySendDelayAndWaitACK(msg))
+
+    def fySendDelayAndWaitACK(self, msg):
+        # 发送数据并等待ACK
+        set_msg, set_flag = self.fySendDataAndWait(message=msg)
+        # 处理返回结果
+        print(f"Response: {set_msg}, Flag: {set_flag}")
+
+    # 开始检测
+    def fyStartDetect(self):
+        if self.checkSlaveStatus():
+            if self.__selfStatus == self.MachineStatus.Ready:
+                rec_msg, rec_flag = self.fySendDataAndWait(message=self.StdData.arrRE2AC)
                 if compare_arr_ctypes_(input_arr=rec_msg, target_arr=self.StdData.arrPCO):
-                    print('下位机处于PCO')
+                    print('AC:下位机处于PCO')
                     self.fyDelaySendData(self.StdData.arrACK, delay_time=10)
                     if self.checkSlaveStatus():
-                        if self.__selfStatus == self.MachineStatus.PIC:
-                            print('下位机状态已经是PIC')
-                            # self.received_image_arr.clear()
-                            self.__recMsgFinishIndex = 0
-                            self.fyDelaySendData(self.StdData.arrSTA, delay_time=1000)
-                            self.received_image_flag = True
-
+                        if self.__selfStatus == self.MachineStatus.Activity:
+                            print('下位机状态已经是Activity')
+                            self.received_image_arr.clear()
+                            self.fyDelaySendData(self.StdData.arrSTA, delay_time=500)
+                            self.start_processing_thread(1)
                             return True
                         else:
                             return False
                     else:
                         return False
                 elif compare_arr_ctypes_(input_arr=rec_msg, target_arr=self.StdData.arrPCC):
-                    print('下位机处于PCC')
-                    self.fy_receive_image()
+                    print('AC:下位机处于PCC')
+                    self.fyStartDetect()
+                    return True
+            elif self.__selfStatus == self.MachineStatus.Activity:
+                self.received_image_flag = True
+                self.received_image_arr = []
+                self.__recMsgFinishIndex = 0
+                self.fyCanSendData(self.StdData.arrSTA)
+                return True
+        else:
+            return False
+
+    # 检测停止
+    def fyStopDetect(self):
+        self.stop_processing_thread(1)
+        self.fyDelaySendData(self.StdData.arrBA2RE, delay_time=1000)
+
+    def fyReceiveImage(self):
+        if self.checkSlaveStatus():
+            if self.__selfStatus == self.MachineStatus.Ready:
+                rec_msg, rec_flag = self.fySendDataAndWait(message=self.StdData.arrRE2PC)
+                if compare_arr_ctypes_(input_arr=rec_msg, target_arr=self.StdData.arrPCO):
+                    print('PIC:下位机处于PCO')
+                    self.fyDelaySendData(self.StdData.arrACK, delay_time=10)
+                    if self.checkSlaveStatus():
+                        if self.__selfStatus == self.MachineStatus.PIC:
+                            print('下位机状态已经是PIC')
+                            self.received_image_arr.clear()
+                            self.__recMsgFinishIndex = 0
+                            self.fyDelaySendData(self.StdData.arrSTA, delay_time=1000)
+                            self.received_image_flag = True
+                            return True
+                        else:
+                            return False
+                    else:
+                        return False
+                elif compare_arr_ctypes_(input_arr=rec_msg, target_arr=self.StdData.arrPCC):
+                    print('PIC:下位机处于PCC')
+                    self.fyReceiveImage()
                     return True
             elif self.__selfStatus == self.MachineStatus.PIC:
                 self.received_image_flag = True
@@ -302,6 +432,9 @@ class FloatingYarn(Can_Derive, QObject):
                 self.__recMsgFinishIndex = 0
                 self.fyCanSendData(self.StdData.arrSTA)
                 return True
+            else:
+                showErrorDialog(None, 'Machine Status Error.')
+                return False
         else:
             return False
 
@@ -315,7 +448,7 @@ class FloatingYarn(Can_Derive, QObject):
                     self.change_send_data(self.StdData.arrRE2PC)
                 elif target_status == self.MachineStatus.Edit:
                     self.change_send_data(self.StdData.arrRE2ED)
-                elif target_status == self.MachineStatus.Activate:
+                elif target_status == self.MachineStatus.Activity:
                     self.change_send_data(self.StdData.arrRE2AC)
                 else:
                     return -1
@@ -324,7 +457,7 @@ class FloatingYarn(Can_Derive, QObject):
                     self.change_send_data(self.StdData.arrBA2RE)
                 else:
                     return -1
-            elif self.__selfStatus == self.MachineStatus.Activate:
+            elif self.__selfStatus == self.MachineStatus.Activity:
                 if target_status == self.MachineStatus.Ready:
                     self.change_send_data(self.StdData.arrBA2RE)
                 else:
@@ -339,23 +472,22 @@ class FloatingYarn(Can_Derive, QObject):
                     self.change_send_data(self.StdData.arrOP2RE)
                 else:
                     return -1
+            elif self.__selfStatus == self.MachineStatus.PIC:
+                if target_status == self.MachineStatus.Ready:
+                    self.change_send_data(self.StdData.arrEND)
+                else:
+                    return -1
             self.can_send_msg(send_id=self.__canID)
             return 1
         else:
             return -2
 
+    def fyTrans2Ready(self):
+        self.trans_status(self.MachineStatus.Ready)
 
-class CanReceiverThread(QThread):
+
+class CanReceiverThread(FYCanThread):
     """线程用于接收数据"""
-
-    def __init__(self, wait_condition, mutex):
-        super().__init__()
-        self.floating_yarn = None  # 将在外部设置
-        self.wait_condition = wait_condition
-        self.mutex = mutex
-
-    def set_floating_yarn(self, floating_yarn):
-        self.floating_yarn = floating_yarn
 
     def run(self):
         while not self.isInterruptionRequested():
@@ -368,32 +500,36 @@ class CanReceiverThread(QThread):
                 QThread.msleep(100)  # 延时，以避免占用过多 CPU 资源
 
 
-class CanProcessorThread(QThread):
-    """线程用于处理数据"""
+class CanProcessorThread(FYCanThread):
+    def run(self):
+        if self.floating_yarn is not None:
+            while not self.isInterruptionRequested():
+                with QMutexLocker(self.mutex):
+                    while not self.floating_yarn.received_image_arr and not self.isInterruptionRequested():
+                        self.wait_condition.wait(self.mutex)  # 等待数据到达
 
-    def __init__(self, wait_condition, mutex):
-        super().__init__()
-        self.wait_condition = wait_condition
-        self.mutex = mutex
-        self.floating_yarn = None  # 将在外部设置
+                    if self.isInterruptionRequested():
+                        break
 
-    def set_floating_yarn(self, floating_yarn):
-        self.floating_yarn = floating_yarn
+                    if self.floating_yarn.received_image_arr:
+                        data_list = self.floating_yarn.received_image_arr[-1]
+                        if data_list:
+                            self.floating_yarn.detectSpecificCharacters(
+                                data_list=data_list,
+                                target_list=[8, 9, 10, 11, 12, 13, 14, 15]
+                            )
+
+
+class KnitSendThread(FYCanThread):
+    """线程用于发送数据"""
 
     def run(self):
-        while not self.isInterruptionRequested():
-            with QMutexLocker(self.mutex):
-                while not self.floating_yarn.received_image_arr and not self.isInterruptionRequested():
-                    self.wait_condition.wait(self.mutex)  # 等待数据到达
-
-                if self.isInterruptionRequested():
-                    break
-
-                if self.floating_yarn.received_image_arr:
-                    data_list = self.floating_yarn.received_image_arr[-1]
-                    if data_list:
-                        self.floating_yarn.detectSpecificCharacters(data_list=data_list,
-                                                                    target_list=[8, 9, 10, 11, 12, 13, 14, 15])
+        if self.floating_yarn is not None:
+            send_data_array = self.floating_yarn.StdData.arrYARN
+            row_array = cameraParamter2CtypeArray(value=self.floating_yarn.__knit_row, length=5)
+            for i in range(3, 8):
+                send_data_array[i] = row_array[i - 3]
+            self.floating_yarn.fyCanSendData(send_data_array)
 
 
 def showErrorDialog(parent, msg):
@@ -415,7 +551,7 @@ class FY_MainWindow(QMainWindow):
         self.text_edit.setReadOnly(True)
 
         self.list_widget = QListWidget(self)
-        self.floating_yarn.message_received.connect(self.display_message)
+        self.floating_yarn.messageReceived.connect(self.display_message)
         self.send_button = QPushButton("Send Data and Wait", self)
         self.send_button.clicked.connect(self.on_send_button_click)
 
