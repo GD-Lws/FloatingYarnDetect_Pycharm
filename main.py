@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QGraphicsPixmapItem, QGra
 from pyqt5_plugins.examplebutton import QtWidgets
 
 import candriver_layout
-from FloatingYarn import FloatingYarn, showErrorDialog, cameraParamter2CtypeArray
+from FloatingYarn import FloatingYarn, showErrorDialog, cameraParams2CtypeArray
 
 floatingYarn = None
 qtUI = None
@@ -71,18 +71,11 @@ class MainWindow:
         self.ui_manager.listWidget_rec.addItem(msg)
 
     def roiParameterSet(self, roi_params):
-        """通用方法，用于设置ROI参数"""
-
-        roi_arrays = [cameraParamter2CtypeArray(param, length=4) for param in roi_params]
-
+        roi_arrays = [cameraParams2CtypeArray(param, length=4) for param in roi_params]
         # 组合数组并设置相机参数
         for i in range(4):
             combined_array = combine_arrays(roi_arrays[i * 2], roi_arrays[i * 2 + 1])
-            if i != 0:
-                # 加延迟以避免串口数据堆叠影响判断
-                QTimer.singleShot(10, lambda: self.floating_yarn.fySetCameraParameter(combined_array, i + 1))
-            else:
-                self.floating_yarn.fySetCameraParameter(combined_array, i + 1)
+            self.floating_yarn.fySetCameraParameter(combined_array, i + 1)
 
     def roi1ParameterSet(self):
         """设置ROI1参数"""
@@ -99,20 +92,16 @@ class MainWindow:
         self.roiParameterSet(roi_params)
 
     def cameraParameterSet(self):
+        # 注意顺序不能改动ET->ISO->FD->ZR
         camera_params = [
             self.ui_manager.edit_par_ExposureTime.text(),
             self.ui_manager.edit_par_ISO.text(),
-            self.ui_manager.edit_par_ZoomRatio.text(),
-            self.ui_manager.edit_par_focusDis.text()
+            self.ui_manager.edit_par_focusDis.text(),
+            self.ui_manager.edit_par_ZoomRatio.text()
         ]
-        camera_arrays = [cameraParamter2CtypeArray(param, length=8) for param in camera_params]
-
+        camera_arrays = [cameraParams2CtypeArray(param, length=8) for param in camera_params]
         for i in range(4):
-            if i != 0:
-                # 加延迟以避免串口数据堆叠影响判断
-                QTimer.singleShot(10, lambda: self.floating_yarn.fySetCameraParameter(camera_arrays, i + 5))
-            else:
-                self.floating_yarn.fySetCameraParameter(camera_arrays, i + 5)
+            self.floating_yarn.fySetCameraParameter(camera_arrays[i], i + 4)
 
     def setTheUIDefaultValue(self):
         # 假设 self.ui_manager 是一个包含 QLineEdit 对象的 UI 管理器
@@ -129,19 +118,43 @@ class MainWindow:
         self.ui_manager.edit_par_ISO.setText('1200')
         self.ui_manager.edit_par_focusDis.setText('4.12')
         self.ui_manager.edit_par_ZoomRatio.setText('1.0')
+        self.ui_manager.progressBar_piccture.setValue(0)
+        font = self.ui_manager.label_detect_flag.font()  # 获取当前的字体
+        font.setPointSize(12)  # 设置新的字体大小
+        self.ui_manager.label_detect_flag.setFont(font)  # 应用新的字体
+        self.ui_manager.label_detect_flag.setText('Detection not started')
+
+        self.uiSetButtonStatus(False)
 
     def uiConnectInit(self):
         self.uiComboBoxInit()
         self.ui_manager.button_driver_connect.clicked.connect(self.uiCanOpen)
         self.ui_manager.button_driver_disconnect.clicked.connect(self.floating_yarn.fyCanClose)
         self.ui_manager.button_getImage.clicked.connect(self.floating_yarn.fyReceiveImage)
-        self.floating_yarn.messageReceived.connect(self.displayRecMessage)
+        self.floating_yarn.sig_messageReceived.connect(self.displayRecMessage)
         self.ui_manager.button_GetStatus.clicked.connect(self.floating_yarn.checkSlaveStatus)
-        self.floating_yarn.imageProcess.connect(self.load_image_from_current_directory)
+        self.floating_yarn.sig_imageProcess.connect(self.load_image_from_current_directory)
         self.ui_manager.button_roiRange.clicked.connect(self.roi1ParameterSet)
         self.ui_manager.button_ReadyStatus.clicked.connect(self.floating_yarn.fyTrans2Ready)
         self.ui_manager.button_parSet.clicked.connect(self.cameraParameterSet)
-        self.floating_yarn.statusUpdated.connect(self.updateFyStatus)
+        self.floating_yarn.sig_statusUpdated.connect(self.updateFyStatus)
+        self.floating_yarn.sig_progressValue.connect(self.updateProgressBar)
+        self.floating_yarn.sig_canStatus.connect(self.uiSetButtonStatus)
+        self.ui_manager.button_stopimage.clicked.connect(self.floating_yarn.fyStopImageRec)
+
+    def uiSetButtonStatus(self, status):
+        self.ui_manager.button_parSet.setEnabled(status)
+        self.ui_manager.button_ReadyStatus.setEnabled(status)
+        self.ui_manager.button_roiRange.setEnabled(status)
+        self.ui_manager.button_getImage.setEnabled(status)
+        self.ui_manager.button_GetStatus.setEnabled(status)
+        self.ui_manager.button_stopimage.setEnabled(status)
+        self.ui_manager.button_parReload.setEnabled(status)
+        self.ui_manager.button_parSave.setEnabled(status)
+        self.ui_manager.button_startdetect.setEnabled(status)
+        self.ui_manager.button_stopdetect.setEnabled(status)
+        self.ui_manager.button_Log.setEnabled(status)
+        self.ui_manager.button_SQLShow.setEnabled(status)
 
     def load_image_from_current_directory(self):
         # 构造图片的相对路径
@@ -177,8 +190,11 @@ class MainWindow:
         view.setSceneRect(scene.itemsBoundingRect())  # 设置场景的矩形
 
     def updateFyStatus(self, status, mode):
-        self.ui_manager.label_stateshow.setText(status.replace("MachineStatus","状态:"))
+        self.ui_manager.label_stateshow.setText(status.replace("MachineStatus", "状态:"))
         self.ui_manager.label_operatemode.setText(mode.replace("MachineOperate", "模式:"))
+
+    def updateProgressBar(self, progress):
+        self.ui_manager.progressBar_piccture.setValue(progress)
 
 
 if __name__ == "__main__":
