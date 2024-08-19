@@ -15,66 +15,50 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout_3">
-    <item row="0" column="0" rowspan="2">
+    <item row="0" column="0">
      <layout class="QGridLayout" name="gridLayout_2">
-      <item row="14" column="1">
-       <widget class="QLineEdit" name="edit_roiRange2_y1">
+      <item row="9" column="0">
+       <widget class="QLabel" name="label_roirange">
+        <property name="text">
+         <string>ROI_1</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="0">
+       <widget class="QLabel" name="label_stateshow">
+        <property name="text">
+         <string>状态：Close</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0" colspan="2">
+       <widget class="Line" name="line_9">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="10" column="1">
+       <widget class="QLineEdit" name="edit_roiRange1_y1">
         <property name="text">
          <string>y1</string>
         </property>
        </widget>
       </item>
-      <item row="14" column="0">
-       <widget class="QLineEdit" name="edit_roiRange2_x1">
-        <property name="text">
-         <string>x1</string>
+      <item row="2" column="0" colspan="2">
+       <widget class="Line" name="line_5">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
         </property>
        </widget>
       </item>
-      <item row="15" column="1">
-       <widget class="QLineEdit" name="edit_roiRange2_y2">
+      <item row="4" column="1">
+       <widget class="QPushButton" name="button_ReadyStatus">
         <property name="text">
-         <string>y2</string>
-        </property>
-       </widget>
-      </item>
-      <item row="17" column="0">
-       <widget class="QLabel" name="label_filename">
-        <property name="text">
-         <string>文件名</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="1">
-       <widget class="QPushButton" name="button_stopdetect">
-        <property name="maximumSize">
-         <size>
-          <width>16770000</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>停止监测</string>
+         <string>Ready</string>
         </property>
         <property name="default">
          <bool>false</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="10" column="0">
-       <widget class="QLineEdit" name="edit_roiRange1_x1">
-        <property name="text">
-         <string>x1</string>
-        </property>
-       </widget>
-      </item>
-      <item row="17" column="1">
-       <widget class="QLineEdit" name="edit_par_FileName"/>
-      </item>
-      <item row="9" column="1">
-       <widget class="QLabel" name="label_roirange_4">
-        <property name="text">
-         <string>X|Y</string>
         </property>
        </widget>
       </item>
@@ -85,20 +69,17 @@
         </property>
        </widget>
       </item>
-      <item row="4" column="0">
-       <widget class="QPushButton" name="button_GetStatus">
+      <item row="10" column="0">
+       <widget class="QLineEdit" name="edit_roiRange1_x1">
         <property name="text">
-         <string>获取状态</string>
-        </property>
-        <property name="default">
-         <bool>false</bool>
+         <string>x1</string>
         </property>
        </widget>
       </item>
-      <item row="12" column="0" colspan="2">
-       <widget class="Line" name="line_4">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
+      <item row="14" column="1">
+       <widget class="QLineEdit" name="edit_roiRange2_y1">
+        <property name="text">
+         <string>y1</string>
         </property>
        </widget>
       </item>
@@ -112,6 +93,40 @@
         </property>
         <property name="text">
          <string>开始监测</string>
+        </property>
+        <property name="default">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="15" column="0">
+       <widget class="QLineEdit" name="edit_roiRange2_x2">
+        <property name="text">
+         <string>x2</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="1">
+       <widget class="QPushButton" name="button_stopimage">
+        <property name="text">
+         <string>停止获取</string>
+        </property>
+        <property name="default">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="9" column="1">
+       <widget class="QLabel" name="label_roirange_4">
+        <property name="text">
+         <string>X|Y</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QPushButton" name="button_GetStatus">
+        <property name="text">
+         <string>获取状态</string>
         </property>
         <property name="default">
          <bool>false</bool>
@@ -141,28 +156,12 @@
         </property>
        </widget>
       </item>
-      <item row="18" column="1">
-       <widget class="QLineEdit" name="edit_par_focusDis"/>
-      </item>
       <item row="3" column="0">
        <widget class="QLabel" name="label_mode_select">
         <property name="text">
          <string>运行模式选择</string>
         </property>
        </widget>
-      </item>
-      <item row="15" column="0">
-       <widget class="QLineEdit" name="edit_roiRange2_x2">
-        <property name="text">
-         <string>x2</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1">
-       <widget class="QComboBox" name="comboBox_ModeSelect"/>
-      </item>
-      <item row="19" column="1">
-       <widget class="QLineEdit" name="edit_par_ISO"/>
       </item>
       <item row="7" column="1">
        <widget class="QLabel" name="label_operatemode">
@@ -171,72 +170,72 @@
         </property>
        </widget>
       </item>
-      <item row="9" column="0">
-       <widget class="QLabel" name="label_roirange">
+      <item row="14" column="0">
+       <widget class="QLineEdit" name="edit_roiRange2_x1">
         <property name="text">
-         <string>ROI_1</string>
+         <string>x1</string>
         </property>
        </widget>
       </item>
-      <item row="4" column="1">
-       <widget class="QPushButton" name="button_ReadyStatus">
+      <item row="3" column="1">
+       <widget class="QComboBox" name="comboBox_ModeSelect"/>
+      </item>
+      <item row="18" column="1">
+       <widget class="QLineEdit" name="edit_par_focusDis"/>
+      </item>
+      <item row="5" column="1">
+       <widget class="QPushButton" name="button_stopdetect">
+        <property name="maximumSize">
+         <size>
+          <width>16770000</width>
+          <height>16777215</height>
+         </size>
+        </property>
         <property name="text">
-         <string>Ready</string>
+         <string>停止监测</string>
         </property>
         <property name="default">
          <bool>false</bool>
         </property>
        </widget>
       </item>
-      <item row="7" column="0">
-       <widget class="QLabel" name="label_stateshow">
-        <property name="text">
-         <string>状态：Close</string>
-        </property>
-       </widget>
+      <item row="17" column="1">
+       <widget class="QLineEdit" name="edit_par_FileName"/>
       </item>
-      <item row="10" column="1">
-       <widget class="QLineEdit" name="edit_roiRange1_y1">
-        <property name="text">
-         <string>y1</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="0" colspan="2">
-       <widget class="Line" name="line_9">
+      <item row="12" column="0" colspan="2">
+       <widget class="Line" name="line_4">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
         </property>
        </widget>
       </item>
-      <item row="2" column="0" colspan="2">
-       <widget class="Line" name="line_5">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="6" column="1">
-       <widget class="QPushButton" name="button_stopimage">
+      <item row="15" column="1">
+       <widget class="QLineEdit" name="edit_roiRange2_y2">
         <property name="text">
-         <string>停止获取</string>
-        </property>
-        <property name="default">
-         <bool>false</bool>
+         <string>y2</string>
         </property>
        </widget>
       </item>
-      <item row="8" column="0" colspan="2">
-       <widget class="Line" name="line">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="6" column="0">
-       <widget class="QPushButton" name="button_getImage">
+      <item row="17" column="0">
+       <widget class="QLabel" name="label_filename">
         <property name="text">
-         <string>获取图片</string>
+         <string>文件名</string>
+        </property>
+       </widget>
+      </item>
+      <item row="19" column="1">
+       <widget class="QLineEdit" name="edit_par_ISO"/>
+      </item>
+      <item row="24" column="1">
+       <widget class="QPushButton" name="button_Log">
+        <property name="maximumSize">
+         <size>
+          <width>16770000</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>日志</string>
         </property>
         <property name="default">
          <bool>false</bool>
@@ -257,39 +256,10 @@
         </property>
        </widget>
       </item>
-      <item row="13" column="0" colspan="2">
-       <widget class="QLabel" name="label_roirange_2">
+      <item row="6" column="0">
+       <widget class="QPushButton" name="button_getImage">
         <property name="text">
-         <string>ROI_2</string>
-        </property>
-       </widget>
-      </item>
-      <item row="23" column="0">
-       <widget class="QPushButton" name="button_parSave">
-        <property name="maximumSize">
-         <size>
-          <width>16770000</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>参数保存</string>
-        </property>
-        <property name="default">
-         <bool>false</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="24" column="0">
-       <widget class="QPushButton" name="button_SQLShow">
-        <property name="maximumSize">
-         <size>
-          <width>16770000</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>数据库</string>
+         <string>获取图片</string>
         </property>
         <property name="default">
          <bool>false</bool>
@@ -319,8 +289,8 @@
         </property>
        </widget>
       </item>
-      <item row="24" column="1">
-       <widget class="QPushButton" name="button_Log">
+      <item row="23" column="0">
+       <widget class="QPushButton" name="button_parSave">
         <property name="maximumSize">
          <size>
           <width>16770000</width>
@@ -328,27 +298,10 @@
          </size>
         </property>
         <property name="text">
-         <string>日志</string>
+         <string>参数保存</string>
         </property>
         <property name="default">
          <bool>false</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="25" column="0" colspan="2">
-       <widget class="Line" name="line_6">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-       </widget>
-      </item>
-      <item row="20" column="1">
-       <widget class="QLineEdit" name="edit_par_ExposureTime"/>
-      </item>
-      <item row="20" column="0">
-       <widget class="QLabel" name="label_exposureTime">
-        <property name="text">
-         <string>曝光时间</string>
         </property>
        </widget>
       </item>
@@ -359,8 +312,55 @@
         </property>
        </widget>
       </item>
+      <item row="20" column="1">
+       <widget class="QLineEdit" name="edit_par_ExposureTime"/>
+      </item>
       <item row="21" column="1">
        <widget class="QLineEdit" name="edit_par_ZoomRatio"/>
+      </item>
+      <item row="20" column="0">
+       <widget class="QLabel" name="label_exposureTime">
+        <property name="text">
+         <string>曝光时间</string>
+        </property>
+       </widget>
+      </item>
+      <item row="24" column="0">
+       <widget class="QPushButton" name="button_SQLShow">
+        <property name="maximumSize">
+         <size>
+          <width>16770000</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>数据库</string>
+        </property>
+        <property name="default">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="13" column="0" colspan="2">
+       <widget class="QLabel" name="label_roirange_2">
+        <property name="text">
+         <string>ROI_2</string>
+        </property>
+       </widget>
+      </item>
+      <item row="8" column="0" colspan="2">
+       <widget class="Line" name="line">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="25" column="0" colspan="2">
+       <widget class="Line" name="line_6">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
       </item>
       <item row="22" column="1">
        <widget class="QPushButton" name="button_parSet">
@@ -378,27 +378,36 @@
         </property>
        </widget>
       </item>
+      <item row="22" column="0">
+       <widget class="QPushButton" name="button_filenameSet">
+        <property name="maximumSize">
+         <size>
+          <width>16770000</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>文件名设置</string>
+        </property>
+        <property name="default">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
      </layout>
     </item>
     <item row="0" column="1">
      <widget class="QGraphicsView" name="GraphView_Image"/>
     </item>
+    <item row="1" column="1">
+     <widget class="QProgressBar" name="progressBar_piccture">
+      <property name="value">
+       <number>24</number>
+      </property>
+     </widget>
+    </item>
     <item row="0" column="2" rowspan="2">
      <layout class="QGridLayout" name="gridLayout">
-      <item row="6" column="3">
-       <widget class="QLineEdit" name="edit_mechine_vel_info">
-        <property name="text">
-         <string>0.8</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QLabel" name="label_baudRate">
-        <property name="text">
-         <string>CAN波特率选择</string>
-        </property>
-       </widget>
-      </item>
       <item row="3" column="3">
        <widget class="QLineEdit" name="edit_machine_info">
         <property name="text">
@@ -406,12 +415,18 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="1">
-       <widget class="QLabel" name="label_roirange_3">
+      <item row="10" column="1" colspan="3">
+       <widget class="QLabel" name="label_detect_flag">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;No Detect&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
         <property name="text">
-         <string>机器型号</string>
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt; font-weight:600; color:#aa5500;&quot;&gt;Detect_flag&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
         </property>
        </widget>
+      </item>
+      <item row="8" column="1" colspan="3">
+       <widget class="QListWidget" name="listWidget_log"/>
       </item>
       <item row="2" column="3">
        <widget class="QPushButton" name="button_knit_info">
@@ -423,54 +438,14 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="3">
-       <widget class="QComboBox" name="comboBox_baudRate"/>
-      </item>
-      <item row="7" column="1" colspan="3">
-       <widget class="QListWidget" name="listWidget_rec"/>
-      </item>
-      <item row="4" column="3">
-       <widget class="QLineEdit" name="edit_knit_file_info">
-        <property name="text">
-         <string>挂机片.LGM</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="3">
-       <widget class="QLineEdit" name="edit_knit_row">
-        <property name="text">
-         <string>256</string>
-        </property>
-       </widget>
-      </item>
-      <item row="9" column="1">
-       <widget class="QPushButton" name="button_clearmsg">
-        <property name="maximumSize">
-         <size>
-          <width>16770000</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>清除</string>
-        </property>
-        <property name="default">
-         <bool>false</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="8" column="1" colspan="3">
-       <widget class="QListWidget" name="listWidget_log"/>
-      </item>
-      <item row="6" column="1">
-       <widget class="QLabel" name="label_roirange_8">
-        <property name="text">
-         <string>机头运行速度</string>
-        </property>
-       </widget>
-      </item>
       <item row="1" column="3">
        <widget class="QPushButton" name="button_driver_disconnect">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
         <property name="text">
          <string>设备断开</string>
         </property>
@@ -479,24 +454,14 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="1">
-       <widget class="QPushButton" name="button_driver_connect">
+      <item row="2" column="1" colspan="2">
+       <widget class="QLabel" name="label_mode_select_2">
         <property name="text">
-         <string>设备连接</string>
-        </property>
-        <property name="default">
-         <bool>false</bool>
+         <string>编织信息</string>
         </property>
        </widget>
       </item>
-      <item row="4" column="1">
-       <widget class="QLabel" name="label_roirange_6">
-        <property name="text">
-         <string>编织花型</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="1">
+      <item row="5" column="1" colspan="2">
        <widget class="QLabel" name="label_roirange_7">
         <property name="text">
          <string>当前编织行数</string>
@@ -519,38 +484,100 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="1">
-       <widget class="QLabel" name="label_mode_select_2">
+      <item row="0" column="3">
+       <widget class="QComboBox" name="comboBox_baudRate"/>
+      </item>
+      <item row="5" column="3">
+       <widget class="QLineEdit" name="edit_knit_row">
         <property name="text">
-         <string>编织信息</string>
+         <string>256</string>
         </property>
        </widget>
       </item>
-      <item row="10" column="1" colspan="3">
-       <widget class="QLabel" name="label_detect_flag">
-        <property name="toolTip">
-         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:14pt;&quot;&gt;No Detect&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-        </property>
+      <item row="0" column="1" colspan="2">
+       <widget class="QLabel" name="label_baudRate">
         <property name="text">
-         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:16pt; font-weight:600; color:#aa5500;&quot;&gt;Detect_flag&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         <string>CAN波特率选择</string>
         </property>
        </widget>
       </item>
-      <item row="11" column="1">
-       <widget class="Line" name="line_8">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
+      <item row="6" column="1" colspan="2">
+       <widget class="QLabel" name="label_roirange_8">
+        <property name="text">
+         <string>机头运行速度</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1" colspan="2">
+       <widget class="QLabel" name="label_roirange_3">
+        <property name="text">
+         <string>机器型号</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="3">
+       <widget class="QLineEdit" name="edit_knit_file_info">
+        <property name="text">
+         <string>挂机片.LGM</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="3">
+       <widget class="QLineEdit" name="edit_mechine_vel_info">
+        <property name="text">
+         <string>0.8</string>
+        </property>
+       </widget>
+      </item>
+      <item row="9" column="1">
+       <widget class="QPushButton" name="button_clearmsg">
+        <property name="maximumSize">
+         <size>
+          <width>16770000</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>清除</string>
+        </property>
+        <property name="default">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="1" colspan="3">
+       <widget class="QListWidget" name="listWidget_rec"/>
+      </item>
+      <item row="4" column="1" colspan="2">
+       <widget class="QLabel" name="label_roirange_6">
+        <property name="text">
+         <string>编织花型</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1" colspan="2">
+       <widget class="QPushButton" name="button_driver_connect">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>30</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>设备连接</string>
+        </property>
+        <property name="default">
+         <bool>false</bool>
         </property>
        </widget>
       </item>
      </layout>
-    </item>
-    <item row="1" column="1">
-     <widget class="QProgressBar" name="progressBar_piccture">
-      <property name="value">
-       <number>24</number>
-      </property>
-     </widget>
     </item>
    </layout>
   </widget>
