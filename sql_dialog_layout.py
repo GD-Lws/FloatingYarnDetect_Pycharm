@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'sql_dialog.ui'
+# Form implementation generated from reading ui file 'sql_dialog_layout.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.9
 #
@@ -14,12 +14,14 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
         Dialog.setObjectName("Dialog")
-        Dialog.resize(568, 444)
+        Dialog.resize(504, 444)
         self.horizontalLayout = QtWidgets.QHBoxLayout(Dialog)
         self.horizontalLayout.setObjectName("horizontalLayout")
-        self.listWidget_sqlData = QtWidgets.QListWidget(Dialog)
-        self.listWidget_sqlData.setObjectName("listWidget_sqlData")
-        self.horizontalLayout.addWidget(self.listWidget_sqlData)
+        self.tableWidget_recTab = QtWidgets.QTableWidget(Dialog)
+        self.tableWidget_recTab.setObjectName("tableWidget_recTab")
+        self.tableWidget_recTab.setColumnCount(0)
+        self.tableWidget_recTab.setRowCount(0)
+        self.horizontalLayout.addWidget(self.tableWidget_recTab)
         self.verticalLayout = QtWidgets.QVBoxLayout()
         self.verticalLayout.setObjectName("verticalLayout")
         self.pushButton_loadSqlData = QtWidgets.QPushButton(Dialog)
@@ -28,9 +30,12 @@ class Ui_Dialog(object):
         self.pushButton_togglaSqlData = QtWidgets.QPushButton(Dialog)
         self.pushButton_togglaSqlData.setObjectName("pushButton_togglaSqlData")
         self.verticalLayout.addWidget(self.pushButton_togglaSqlData)
-        self.pushButton_delectSqlData = QtWidgets.QPushButton(Dialog)
-        self.pushButton_delectSqlData.setObjectName("pushButton_delectSqlData")
-        self.verticalLayout.addWidget(self.pushButton_delectSqlData)
+        self.pushButton_dropSqlData = QtWidgets.QPushButton(Dialog)
+        self.pushButton_dropSqlData.setObjectName("pushButton_dropSqlData")
+        self.verticalLayout.addWidget(self.pushButton_dropSqlData)
+        self.pushButton_dropSqlAllData = QtWidgets.QPushButton(Dialog)
+        self.pushButton_dropSqlAllData.setObjectName("pushButton_dropSqlAllData")
+        self.verticalLayout.addWidget(self.pushButton_dropSqlAllData)
         self.listView_cameraParm = QtWidgets.QListView(Dialog)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
@@ -47,6 +52,7 @@ class Ui_Dialog(object):
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate
         Dialog.setWindowTitle(_translate("Dialog", "Dialog"))
-        self.pushButton_loadSqlData.setText(_translate("Dialog", "读取已存数据"))
-        self.pushButton_togglaSqlData.setText(_translate("Dialog", "切换为选中的文件"))
-        self.pushButton_delectSqlData.setText(_translate("Dialog", "删除选中的文件"))
+        self.pushButton_loadSqlData.setText(_translate("Dialog", "读取已存数据表"))
+        self.pushButton_togglaSqlData.setText(_translate("Dialog", "切换为选中表"))
+        self.pushButton_dropSqlData.setText(_translate("Dialog", "删除选表"))
+        self.pushButton_dropSqlAllData.setText(_translate("Dialog", "删除库中所有表"))

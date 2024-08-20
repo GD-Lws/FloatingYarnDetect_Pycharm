@@ -14,7 +14,7 @@ from datetime import datetime
 from FYCanThread import FYCanThread
 
 
-def cameraParams2CtypeArray(value_str, length=5):
+def value2CtypeArray(value_str, length=5):
     # 创建 ctypes 数组
     ctype_array = (ctypes.c_uint8 * length)()
     # 计算填充字节
@@ -40,7 +40,7 @@ def calNumberArray(input_list):
     return outputData
 
 
-def list_to_str(input_list):
+def recList2Str(input_list, timeStamp=True):
     """将十进制 ASCII 列表转换为字符串，并附加接收时间戳"""
     message_str = ''
     if isinstance(input_list, list):
@@ -49,12 +49,12 @@ def list_to_str(input_list):
             message_str = ''.join(chr(value) for value in input_list)
         except ValueError:
             message_str = 'Invalid ASCII values'
+    if timeStamp:
+        # 获取当前时间戳
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    # 获取当前时间戳
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-    # 将时间戳添加到字符串末尾
-    message_str += f' (Received at: {timestamp})'
+        # 将时间戳添加到字符串末尾
+        message_str += f' (Received at: {timestamp})'
 
     return message_str
 
@@ -79,12 +79,28 @@ def on_timeout():
     showErrorDialog(None, 'Timeout occurred. No response received.')  # None 为父窗口
 
 
+def sqlListExtract(recList, startChar, endChar):
+    ansList = []
+    targetFlag = False
+
+    for data in recList:
+        if data == startChar:
+            targetFlag = True
+            continue
+        if data == endChar:
+            break
+        if targetFlag:
+            ansList.append(data)
+    return ansList
+
+
 class FloatingYarn(Can_Derive, QObject):
     sig_messageReceived = pyqtSignal(str)
     sig_statusUpdated = pyqtSignal(str, str)
     sig_imageProcess = pyqtSignal()
     sig_progressValue = pyqtSignal(int)
-    sig_canStatus = pyqtSignal(bool,int)
+    sig_canStatus = pyqtSignal(bool, int)
+    sig_sqlTableNameList = pyqtSignal(list)
 
     class MachineStatus(Enum):
         Close = 0
@@ -140,7 +156,7 @@ class FloatingYarn(Can_Derive, QObject):
         self.__recPicCurrentSize = 0
 
         self.__recSqlTabNameString = ""
-        self.__recSqlTabNameArr = []
+        self._recSqlTabNameArr = deque()
         self.__recSqlTabNameFlag = False
 
     def start_processing_thread(self, thread_index):
@@ -216,12 +232,25 @@ class FloatingYarn(Can_Derive, QObject):
         print("图片接收完成")
 
     def processDscSQLFlag(self):
-        pass
+        self.__recSqlTabNameFlag = False
+        self.stop_processing_thread(0)
+
+        if not self._recSqlTabNameArr:
+            return  # 如果列表为空，则直接返回
+        # 获取第一个元素的长度（假设它是长度数据）
+        len_array = self._recSqlTabNameArr[0]
+        print(recList2Str(len_array, False))
+        sqlTableNameArr = []
+        for recData in self._recSqlTabNameArr:
+            extracted_data = sqlListExtract(recData, 58, 59)
+            dataStr = recList2Str(extracted_data, timeStamp=False)
+            if len(dataStr):
+                sqlTableNameArr.append(dataStr)
+        self.sig_sqlTableNameList.emit(sqlTableNameArr)
 
     def dequeToImage(self):
         print(len(self._recImageSaveArr))
         image_array = bytearray()  # 使用 bytearray 存储数据
-        hex_str = ''
         # 处理起始标识符
         while True:
             if not self._recImageSaveArr:
@@ -261,11 +290,11 @@ class FloatingYarn(Can_Derive, QObject):
                 self.__recPicCurrentSize += 8
                 self.fyCalPicProgressBar()
             elif self.__recSqlTabNameFlag:
-                self.__recSqlTabNameArr.append(data_list)
+                self._recSqlTabNameArr.append(data_list)
             else:
                 self._recMsgSaveArr.append(data_list)
                 self.__waitCondition.wakeAll()  # 唤醒等待的线程
-                self.sig_messageReceived.emit(list_to_str(data_list))  # 发射信号，确保在主线程中
+                self.sig_messageReceived.emit(recList2Str(data_list))  # 发射信号，确保在主线程中
             # 检查处理线程是否需要启动
             if (self.__recImageFlag or self.__recSqlTabNameFlag) and not self.__processorThread:
                 self.start_processing_thread(0)  # 开始处理线程
@@ -283,6 +312,7 @@ class FloatingYarn(Can_Derive, QObject):
         if self.check_CAN_STATUS():
             self.__canStatus = True
             self.sig_canStatus.emit(self.__canStatus, 0)
+            self.fyCheckSlaveStatus()
             return True
         else:
             self.__canStatus = False
@@ -310,7 +340,9 @@ class FloatingYarn(Can_Derive, QObject):
             elif rec_msg[2] == 53:
                 self.__selfStatus = self.MachineStatus.PIC
             elif rec_msg[2] == 54:
-                self.__selfStatus = self.MachineStatus.PIC
+                self.__selfStatus = self.MachineStatus.MSG_END
+            elif rec_msg[2] == 55:
+                self.__selfStatus = self.MachineStatus.SQL_EDIT
             if rec_msg[5] == 48:
                 self.__selfOperateMode = self.MachineOperate.Detect
             elif rec_msg[5] == 49:
@@ -369,39 +401,38 @@ class FloatingYarn(Can_Derive, QObject):
         else:
             return None, False
 
-    # def fySetSQLState(self, mission):
-    #     if not self.checkSlaveStatus():
-    #         return False
-    #     # 处理设备状态为 Ready
-    #     if self.__selfStatus == self.MachineStatus.Ready:
-    #         rec_msg, rec_flag = self.fySendDataAndWait(message=self.StdData.arrRE2SQL)
-    #         return self.fySetSQLState(mission)
-    #     # 处理设备状态为 SQL
-    #     if self.__selfStatus == self.MachineStatus.SQL_EDIT:
-    #         # 获取文件名
-    #         if mission == 1:
-    #             self.fyCanSendData(self.StdData.arrTNAM)
-    #
-    #             pass
-    #         elif mission == 2:
-    #             # 切换文件
-    #             pass
-    #         elif mission == 3:
-    #             pass
-    #         if sendMsg is not None:
-    #             if parameter_index in [1, 4, 12]:
-    #                 self.fyCanSendData(sendMsg)
-    #             if parameter_index < 9:
-    #                 time.sleep(0.05)
-    #                 self.fySendDelayAndWaitACK(msg=parameter_array)
-    #             elif 9 <= parameter_index < 12:
-    #                 self.fySendDelayAndWaitACK(msg=sendMsg)
-    #         else:
-    #             return False
-    #     # 处理其他设备状态
-    #     showErrorDialog(None, 'Machine Status Error.')
-    #     self.trans_status(self.MachineStatus.Ready)
-    #     return self.fySetCameraParameter(parameter_array, parameter_index)
+    def fySetSQLState(self, mission):
+        if not self.fyCheckSlaveStatus():
+            return False
+        # 处理设备状态为 Ready
+        if self.__selfStatus == self.MachineStatus.Ready:
+            rec_msg, rec_flag = self.fySendDataAndWait(message=self.StdData.arrRE2SQL)
+            return self.fySetSQLState(mission)
+        # 处理设备状态为 SQL
+        elif self.__selfStatus == self.MachineStatus.SQL_EDIT:
+            # 获取文件名
+            if mission == 1:
+                self.__recSqlTabNameFlag = True
+                self._recSqlTabNameArr.clear()
+                self.fyCanSendData(self.StdData.arrTNAM)
+                return True
+            elif mission == 2:
+                # 切换文件
+                self.fyCanSendData(self.StdData.arrTCHA)
+                return True
+            elif mission == 3:
+                self.fyCanSendData(self.StdData.arrTDRO)
+                return True
+            elif mission == 4:
+                self.fyCanSendData(self.StdData.arrTDRA)
+                return True
+            else:
+                return False
+        else:
+            # 处理其他设备状态
+            showErrorDialog(None, 'Machine Status Error.')
+            self.trans_status(self.MachineStatus.Ready)
+            return self.fySetSQLState(mission)
 
     def fySetCameraParameter(self, parameter_array, parameter_index):
         num_array = [0x00, 0x31, 0x32, 0x33, 0x34]
@@ -412,25 +443,32 @@ class FloatingYarn(Can_Derive, QObject):
         if self.__selfStatus == self.MachineStatus.Ready:
             rec_msg, rec_flag = self.fySendDataAndWait(message=self.StdData.arrRE2ED)
             if rec_flag:
+                time.sleep(0.05)
                 return self.fySetCameraParameter(parameter_array, parameter_index)
             return True
         # 处理设备状态为 Edit
-        if self.__selfStatus == self.MachineStatus.Edit:
+        elif self.__selfStatus == self.MachineStatus.Edit:
             sendMsg = self.getSendMsgByIndex(parameter_index, num_array)
             if sendMsg is not None:
                 if parameter_index in [1, 4, 12]:
+                    # 切换标识符
                     self.fyCanSendData(sendMsg)
                 if parameter_index < 9:
                     time.sleep(0.05)
                     self.fySendDelayAndWaitACK(msg=parameter_array)
                 elif 9 <= parameter_index < 12:
                     self.fySendDelayAndWaitACK(msg=sendMsg)
+                elif parameter_array == 12:
+                    # 文件名字
+                    self.fySendDelayAndWaitACK(msg=parameter_array)
             else:
                 return False
         # 处理其他设备状态
-        showErrorDialog(None, 'Machine Status Error.')
-        self.trans_status(self.MachineStatus.Ready)
-        return self.fySetCameraParameter(parameter_array, parameter_index)
+        else:
+            showErrorDialog(None, 'Machine Status Error.')
+            self.trans_status(self.MachineStatus.Ready)
+            time.sleep(0.05)
+            return self.fySetCameraParameter(parameter_array, parameter_index)
 
     def getSendMsgByIndex(self, parameter_index, num_array):
         """根据参数索引获取发送消息"""
@@ -523,7 +561,7 @@ class FloatingYarn(Can_Derive, QObject):
                     return True
             elif self.__selfStatus == self.MachineStatus.PIC:
                 self.__recImageFlag = True
-                self._recImageSaveArr = []
+                self._recImageSaveArr.clear()
                 self.__recMsgFinishIndex = 0
                 self.fyCanSendData(self.StdData.arrSTA)
                 return True
@@ -535,47 +573,40 @@ class FloatingYarn(Can_Derive, QObject):
 
     # 状态转换
     def trans_status(self, target_status):
-        if self.fyCheckSlaveStatus():
-            if self.__selfStatus == self.MachineStatus.Ready:
-                if target_status == self.MachineStatus.Ready:
-                    return 1
-                elif target_status == self.MachineStatus.PIC:
-                    self.change_send_data(self.StdData.arrRE2PC)
-                elif target_status == self.MachineStatus.Edit:
-                    self.change_send_data(self.StdData.arrRE2ED)
-                elif target_status == self.MachineStatus.Activity:
-                    self.change_send_data(self.StdData.arrRE2AC)
-                else:
-                    return -1
-            elif self.__selfStatus == self.MachineStatus.Edit:
-                if target_status == self.MachineStatus.Ready:
-                    self.change_send_data(self.StdData.arrBA2RE)
-                else:
-                    return -1
-            elif self.__selfStatus == self.MachineStatus.Activity:
-                if target_status == self.MachineStatus.Ready:
-                    self.change_send_data(self.StdData.arrBA2RE)
-                else:
-                    return -1
-            elif self.__selfStatus == self.MachineStatus.PIC:
-                if target_status == self.MachineStatus.Ready:
-                    self.change_send_data(self.StdData.arrBA2RE)
-                else:
-                    return -1
-            elif self.__selfStatus == self.MachineStatus.Open:
-                if target_status == self.MachineStatus.Ready:
-                    self.change_send_data(self.StdData.arrOP2RE)
-                else:
-                    return -1
-            elif self.__selfStatus == self.MachineStatus.PIC:
-                if target_status == self.MachineStatus.Ready:
-                    self.change_send_data(self.StdData.arrEND)
-                else:
-                    return -1
+        if not self.fyCheckSlaveStatus():
+            return -2
+        status_map = {
+            self.MachineStatus.Ready: {
+                self.MachineStatus.PIC: self.StdData.arrRE2PC,
+                self.MachineStatus.Edit: self.StdData.arrRE2ED,
+                self.MachineStatus.Activity: self.StdData.arrRE2AC,
+                self.MachineStatus.SQL_EDIT: self.StdData.arrRE2SQL,
+            },
+            self.MachineStatus.Edit: {
+                self.MachineStatus.Ready: self.StdData.arrBA2RE,
+            },
+            self.MachineStatus.Activity: {
+                self.MachineStatus.Ready: self.StdData.arrBA2RE,
+            },
+            self.MachineStatus.PIC: {
+                self.MachineStatus.Ready: self.StdData.arrBA2RE,
+            },
+            self.MachineStatus.Open: {
+                self.MachineStatus.Ready: self.StdData.arrOP2RE,
+            },
+            self.MachineStatus.SQL_EDIT: {
+                self.MachineStatus.Ready: self.StdData.arrBA2RE,
+            }
+        }
+        if self.__selfStatus == self.MachineStatus.Ready and target_status == self.MachineStatus.Ready:
+            return 1
+        target_data = status_map.get(self.__selfStatus, {}).get(target_status)
+        if target_data:
+            self.change_send_data(target_data)
             self.can_send_msg(send_id=self.__canID)
             return 1
         else:
-            return -2
+            return -1
 
     def fyTrans2Ready(self):
         self.trans_status(self.MachineStatus.Ready)
@@ -595,21 +626,29 @@ class CanReceiverThread(FYCanThread):
 
 class CanProcessorThread(FYCanThread):
     def run(self):
-        if self.floating_yarn is not None:
-            while not self.isInterruptionRequested():
-                with QMutexLocker(self.mutex):
-                    while not self.floating_yarn._recImageSaveArr and not self.isInterruptionRequested():
-                        self.wait_condition.wait(self.mutex)  # 等待数据到达
-                    if self.isInterruptionRequested():
-                        break
-
-                    if self.floating_yarn._recImageSaveArr:
-                        data_list = self.floating_yarn._recImageSaveArr[-1]
-                        if data_list:
-                            self.floating_yarn.detectSpecificCharacters(
-                                data_list=data_list,
-                                target_list=[8, 9, 10, 11, 12, 13, 14, 15]
-                            )
+        if self.floating_yarn is None:
+            return  # 提前退出，如果floating_yarn为空
+        while not self.isInterruptionRequested():
+            with QMutexLocker(self.mutex):
+                while not (
+                        self.floating_yarn._recImageSaveArr or self.floating_yarn._recSqlTabNameArr) and not self.isInterruptionRequested():
+                    self.wait_condition.wait(self.mutex)
+                if self.isInterruptionRequested():
+                    break
+                if self.floating_yarn._recImageSaveArr:
+                    data_list = self.floating_yarn._recImageSaveArr[-1]
+                    if data_list:
+                        self.floating_yarn.detectSpecificCharacters(
+                            data_list=data_list,
+                            target_list=[8, 9, 10, 11, 12, 13, 14, 15]
+                        )
+                if self.floating_yarn._recSqlTabNameArr:
+                    data_list = self.floating_yarn._recSqlTabNameArr[-1]
+                    if data_list:
+                        self.floating_yarn.detectSpecificCharacters(
+                            data_list=data_list,
+                            target_list=[8, 9, 10, 11, 12, 13, 14, 15]
+                        )
 
 
 class KnitSendThread(FYCanThread):
@@ -619,7 +658,7 @@ class KnitSendThread(FYCanThread):
         if self.floating_yarn is not None:
             send_data_array = self.floating_yarn.StdData.arrYARN
             sendRow = self.floating_yarn.__knitRow
-            row_array = cameraParams2CtypeArray(value_str=sendRow, length=5)
+            row_array = value2CtypeArray(value_str=sendRow, length=5)
             for i in range(3, 8):
                 send_data_array[i] = row_array[i - 3]
             self.floating_yarn.fyCanSendData(send_data_array)

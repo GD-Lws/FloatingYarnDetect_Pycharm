@@ -1,13 +1,14 @@
 import ctypes
 import sys
+import time
 
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import QApplication, QMainWindow, QGraphicsPixmapItem, QGraphicsScene, QInputDialog
+from PyQt5.QtWidgets import QApplication, QMainWindow, QGraphicsPixmapItem, QGraphicsScene, QInputDialog, QMessageBox
 from pyqt5_plugins.examplebutton import QtWidgets
 
 import candriver_layout
-from FloatingYarn import FloatingYarn, showErrorDialog, cameraParams2CtypeArray
+from FloatingYarn import FloatingYarn, showErrorDialog, value2CtypeArray
 from SQLDialog import SQLDialog
 
 floatingYarn = None
@@ -73,7 +74,7 @@ class MainWindow:
         self.ui_manager.listWidget_rec.addItem(msg)
 
     def roiParameterSet(self, roi_params):
-        roi_arrays = [cameraParams2CtypeArray(param, length=4) for param in roi_params]
+        roi_arrays = [value2CtypeArray(param, length=4) for param in roi_params]
         # 组合数组并设置相机参数
         for i in range(4):
             combined_array = combine_arrays(roi_arrays[i * 2], roi_arrays[i * 2 + 1])
@@ -101,7 +102,7 @@ class MainWindow:
             self.ui_manager.edit_par_focusDis.text(),
             self.ui_manager.edit_par_ZoomRatio.text()
         ]
-        camera_arrays = [cameraParams2CtypeArray(param, length=8) for param in camera_params]
+        camera_arrays = [value2CtypeArray(param, length=8) for param in camera_params]
         for i in range(4):
             self.floating_yarn.fySetCameraParameter(camera_arrays[i], i + 4)
 
@@ -145,7 +146,7 @@ class MainWindow:
         self.ui_manager.button_stopdetect.clicked.connect(self.floating_yarn.fyStopDetect)
         self.ui_manager.button_SQLShow.clicked.connect(self.openSqlDialog)
 
-        self.ui_manager.comboBox_ModeSelect.currentIndexChanged.connect(self.comboxChange)
+        self.ui_manager.comboBox_ModeSelect.currentIndexChanged.connect(self.comboxDetectModeChange)
 
         self.floating_yarn.sig_imageProcess.connect(self.load_image_from_current_directory)
         self.floating_yarn.sig_messageReceived.connect(self.displayRecMessage)
@@ -216,25 +217,35 @@ class MainWindow:
         self.ui_manager.listWidget_log.clear()
         self.ui_manager.listWidget_rec.clear()
 
-    def comboxChange(self, index):
+    def comboxDetectModeChange(self, index):
         camera_array = (ctypes.c_uint8 * 8)()
         self.floating_yarn.fySetCameraParameter(camera_array, index + 9)
+        time.sleep(0.05)
         self.floating_yarn.fyTrans2Ready()
+        time.sleep(0.05)
+        self.floating_yarn.fyCheckSlaveStatus()
         if index == 2:
-            text, ok = QInputDialog.getText(self.MainWindow, 'Input Dialog', 'Enter your name:')
+            text, ok = QInputDialog.getText(self.MainWindow, 'Input Dialog', 'Enter Target Table name:')
             if ok:
-                print('User input:', text)
-                self.setUpFileName(filename=text)
+                if len(text) > 7:
+                    text = text[:8]  # 截断输入
+                    print('输入过长，已截断为:', text)
+                    # 可选：显示一个警告或信息框
+                    QMessageBox.warning(self.MainWindow, '输入警告', '输入的目标表名过长，已自动截断。')
+                else:
+                    print('User input:', text)
+                self.ui_manager.edit_par_FileName.setText(text)
+                # self.setUpFileName(filename=text)
 
     def buttonSetFileName(self):
         filename = self.ui_manager.edit_par_FileName.text()
         self.setUpFileName(filename)
 
     def setUpFileName(self, filename):
-        filename_array = cameraParams2CtypeArray(filename, length=8)
+        filename_array = value2CtypeArray(filename, length=8)
         self.floating_yarn.fySetCameraParameter(filename_array, 12)
+        time.sleep(0.05)
         self.floating_yarn.fyTrans2Ready()
-        self.ui_manager.edit_par_FileName.setText(filename)
 
     def openSqlDialog(self):
         self.sqlDialog.exec_()

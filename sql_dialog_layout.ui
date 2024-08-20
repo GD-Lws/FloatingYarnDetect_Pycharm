@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>568</width>
+    <width>504</width>
     <height>444</height>
    </rect>
   </property>
@@ -15,28 +15,35 @@
   </property>
   <layout class="QHBoxLayout" name="horizontalLayout">
    <item>
-    <widget class="QListWidget" name="listWidget_sqlData"/>
+    <widget class="QTableWidget" name="tableWidget_recTab"/>
    </item>
    <item>
     <layout class="QVBoxLayout" name="verticalLayout">
      <item>
       <widget class="QPushButton" name="pushButton_loadSqlData">
        <property name="text">
-        <string>读取已存数据</string>
+        <string>读取已存数据表</string>
        </property>
       </widget>
      </item>
      <item>
       <widget class="QPushButton" name="pushButton_togglaSqlData">
        <property name="text">
-        <string>切换为选中的文件</string>
+        <string>切换为选中表</string>
        </property>
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="pushButton_delectSqlData">
+      <widget class="QPushButton" name="pushButton_dropSqlData">
        <property name="text">
-        <string>删除选中的文件</string>
+        <string>删除选表</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="pushButton_dropSqlAllData">
+       <property name="text">
+        <string>删除库中所有表</string>
        </property>
       </widget>
      </item>
