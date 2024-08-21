@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QGraphicsPixmapItem, QGra
 from pyqt5_plugins.examplebutton import QtWidgets
 
 import candriver_layout
-from FloatingYarn import FloatingYarn, showErrorDialog, numValue2CtypeArray, strValue2CtypeArray, showInfoDialog
+from FloatingYarn import FloatingYarn, numValue2CtypeArray, strValue2CtypeArray
 from SQLDialog import SQLDialog
 
 floatingYarn = None
@@ -80,35 +80,59 @@ class MainWindow:
         # 组合数组并设置相机参数
         for i in range(4):
             combined_array = combine_arrays(roi_arrays[i * 2], roi_arrays[i * 2 + 1])
-            self.floating_yarn.fySetCameraParameter(combined_array, i + 1)
-
-    def roi1ParameterSet(self):
-        """设置ROI1参数"""
-        roi_params = [
-            self.ui_manager.edit_roiRange1_x1.text(),
-            self.ui_manager.edit_roiRange1_y1.text(),
-            self.ui_manager.edit_roiRange1_x2.text(),
-            self.ui_manager.edit_roiRange1_y2.text(),
-            self.ui_manager.edit_roiRange2_x1.text(),
-            self.ui_manager.edit_roiRange2_y1.text(),
-            self.ui_manager.edit_roiRange2_x2.text(),
-            self.ui_manager.edit_roiRange2_y2.text(),
-        ]
-        self.roiParameterSet(roi_params)
+            self.floating_yarn.fySetCameraParameter(combined_array, i)
+            time.sleep(0.05)
+        self.showInfoDialog("设置识别区域成功")
 
     def cameraParameterSet(self):
         self.floating_yarn.fyTrans2Ready()
         time.sleep(0.05)
         # 注意顺序不能改动ET->ISO->FD->ZR
         camera_params = [
-            self.ui_manager.edit_par_ExposureTime.text(),
-            self.ui_manager.edit_par_ISO.text(),
-            self.ui_manager.edit_par_focusDis.text(),
-            self.ui_manager.edit_par_ZoomRatio.text()
+            self.ui_manager.edit_par_ExposureTime.text().strip(),
+            self.ui_manager.edit_par_ISO.text().strip(),
+            self.ui_manager.edit_par_focusDis.text().strip(),
+            self.ui_manager.edit_par_ZoomRatio.text().strip()
         ]
         camera_arrays = [numValue2CtypeArray(param, length=8) for param in camera_params]
         for i in range(4):
             self.floating_yarn.fySetCameraParameter(camera_arrays[i], i + 4)
+            time.sleep(0.05)
+        self.showInfoDialog("设置参数成功")
+
+    def comboxDetectModeChange(self, index):
+        camera_array = (ctypes.c_uint8 * 8)()
+        self.floating_yarn.fySetCameraParameter(camera_array, index + 8)
+        time.sleep(0.05)
+        self.floating_yarn.fyTrans2Ready()
+        time.sleep(0.05)
+        self.floating_yarn.fyCheckSlaveStatus()
+        if index == 2:
+            text, ok = QInputDialog.getText(self.MainWindow, 'Input Dialog', 'Enter Target Table name:')
+            if ok:
+                if len(text) > 7:
+                    text = text[:8]  # 截断输入
+                    print('输入过长，已截断为:', text)
+                    # 可选：显示一个警告或信息框
+                    QMessageBox.warning(self.MainWindow, '输入警告', '输入的目标表名过长，已自动截断。')
+                else:
+                    print('User input:', text)
+                self.updateFileName(text)
+                # self.setUpFileName(filename=text)
+
+    def roi1ParameterSet(self):
+        """设置ROI1参数"""
+        roi_params = [
+            self.ui_manager.edit_roiRange1_x1.text().strip(),
+            self.ui_manager.edit_roiRange1_y1.text().strip(),
+            self.ui_manager.edit_roiRange1_x2.text().strip(),
+            self.ui_manager.edit_roiRange1_y2.text().strip(),
+            self.ui_manager.edit_roiRange2_x1.text().strip(),
+            self.ui_manager.edit_roiRange2_y1.text().strip(),
+            self.ui_manager.edit_roiRange2_x2.text().strip(),
+            self.ui_manager.edit_roiRange2_y2.text().strip(),
+        ]
+        self.roiParameterSet(roi_params)
 
     def setTheUIDefaultValue(self):
         # 假设 self.ui_manager 是一个包含 QLineEdit 对象的 UI 管理器
@@ -187,6 +211,7 @@ class MainWindow:
             self.uiSetButtonStatus(status, 0)
             self.ui_manager.button_stopimage.setEnabled(True)
 
+    # 加载图片从文件路径
     def load_image_from_current_directory(self):
         # 构造图片的相对路径
         # 加载图片
@@ -220,36 +245,18 @@ class MainWindow:
         view.setScene(scene)
         view.setSceneRect(scene.itemsBoundingRect())  # 设置场景的矩形
 
+    # 更新下位机状态
     def updateFyStatus(self, status, mode):
         self.ui_manager.label_stateshow.setText(status.replace("MachineStatus", "状态:"))
         self.ui_manager.label_operatemode.setText(mode.replace("MachineOperate", "模式:"))
 
+    # 更新接收照片进度条
     def updateProgressBar(self, progress):
         self.ui_manager.progressBar_piccture.setValue(progress)
 
     def clearListMsg(self):
         self.ui_manager.listWidget_log.clear()
         self.ui_manager.listWidget_rec.clear()
-
-    def comboxDetectModeChange(self, index):
-        camera_array = (ctypes.c_uint8 * 8)()
-        self.floating_yarn.fySetCameraParameter(camera_array, index + 9)
-        time.sleep(0.05)
-        self.floating_yarn.fyTrans2Ready()
-        time.sleep(0.05)
-        self.floating_yarn.fyCheckSlaveStatus()
-        if index == 2:
-            text, ok = QInputDialog.getText(self.MainWindow, 'Input Dialog', 'Enter Target Table name:')
-            if ok:
-                if len(text) > 7:
-                    text = text[:8]  # 截断输入
-                    print('输入过长，已截断为:', text)
-                    # 可选：显示一个警告或信息框
-                    QMessageBox.warning(self.MainWindow, '输入警告', '输入的目标表名过长，已自动截断。')
-                else:
-                    print('User input:', text)
-                self.updateFileName(text)
-                # self.setUpFileName(filename=text)
 
     def buttonSetFileName(self):
         filename = self.ui_manager.edit_par_FileName.text()
@@ -267,14 +274,14 @@ class MainWindow:
         filename_array = strValue2CtypeArray(filename, length=8)
         self.floating_yarn.fyTrans2Ready()
         time.sleep(0.05)
-        self.floating_yarn.fySetCameraParameter(filename_array, 12)
+        self.floating_yarn.fySetCameraParameter(filename_array, 11)
         time.sleep(0.05)
         self.floating_yarn.fyTrans2Ready()
 
     def getCameraParams(self):
         self.floating_yarn.fyTrans2Ready()
         time.sleep(0.05)
-        self.floating_yarn.fySetCameraParameter(None, 13)
+        self.floating_yarn.fySetCameraParameter(None, 12)
 
     def getCameraParams2EditText(self, msgList):
         if len(msgList) != 12:
@@ -303,7 +310,7 @@ class MainWindow:
         QMessageBox.critical(self.MainWindow, 'Error', msg, QMessageBox.Ok)
 
     def showInfoDialog(self, msg):
-        QMessageBox.critical(self.MainWindow, 'Info', msg, QMessageBox.Ok)
+        QMessageBox.information(self.MainWindow, 'Info', msg, QMessageBox.Ok)
 
     def openSqlDialog(self):
         self.sqlDialog.exec_()

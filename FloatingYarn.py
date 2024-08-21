@@ -366,7 +366,9 @@ class FloatingYarn(Can_Derive, QObject):
     def fyCheckSlaveStatus(self):
         rec_msg, rec_flag = self.fySendDataAndWait(message=self.StdData.arrSTATUS, timeout_ms=1000)
         if rec_flag:
-            if rec_msg[2] == 49:
+            if rec_msg[2] == 48:
+                self.__selfStatus = self.MachineStatus.Close
+            elif rec_msg[2] == 49:
                 self.__selfStatus = self.MachineStatus.Open
             elif rec_msg[2] == 50:
                 self.__selfStatus = self.MachineStatus.Ready
@@ -477,11 +479,12 @@ class FloatingYarn(Can_Derive, QObject):
         else:
             # 处理其他设备状态
             self.sig_errorDialog.emit('Machine Status Error.')
-            self.trans_status(self.MachineStatus.Ready)
+            self.tranStatus(self.MachineStatus.Ready)
             return self.fySetSQLState(mission, byteName)
 
     # parameter_array: 输入数据
     # parameter_index: 功能索引
+    # 0<=ROI<4, 4<=CP<8, 8<=MODE<11, 11=FileName,12=LoadData
     def fySetCameraParameter(self, parameter_array, parameter_index):
         num_array = [0x00, 0x31, 0x32, 0x33, 0x34]
         # 检查设备状态
@@ -496,48 +499,49 @@ class FloatingYarn(Can_Derive, QObject):
             return True
         # 处理设备状态为 Edit
         elif self.__selfStatus == self.MachineStatus.Edit:
-            sendMsg = self.getSendMsgByIndex(parameter_index, num_array)
-            if parameter_index == 13:
+
+            if parameter_index == 12:
                 # 下位机参数获取
                 self.recProcessDataArr.clear()
                 self.__recCameraParamsFlag = True
                 self.fyCanSendData(self.StdData.arrGETPAR)
                 return True
-            if sendMsg is not None:
-                if parameter_index in [1, 4, 12]:
-                    # 切换标识符
-                    self.fyCanSendData(sendMsg)
-                    time.sleep(0.10)
-                if parameter_index < 9:
-                    # ROI区域
-                    self.fySendDelayAndWaitACK(msg=parameter_array)
-                elif 9 <= parameter_index < 12:
-                    # 相机参数
-                    self.fySendDelayAndWaitACK(msg=parameter_array)
-                elif parameter_index == 12:
-                    # 文件名字
-                    self.fySendDelayAndWaitACK(msg=parameter_array)
-                    self.sig_infoDialog.emit('文件名指令已发送')
-            else:
-                return False
+            sendMsg = self.getSendMsgByIndex(parameter_index, num_array)
+            if parameter_index in [0, 4, 11]:
+                # 切换标识符
+                self.fyCanSendData(sendMsg)
+                time.sleep(0.10)
+            if parameter_index < 4:
+                # ROI区域
+                self.fySendDelayAndWaitACK(msg=parameter_array)
+            elif 4 <= parameter_index < 8:
+                # 相机参数
+                self.fySendDelayAndWaitACK(msg=parameter_array)
+            elif 8 <= parameter_index < 11:
+                # 模式设置
+                self.fySendDelayAndWaitACK(msg=sendMsg)
+            elif parameter_index == 11:
+                # 文件名字
+                self.fySendDelayAndWaitACK(msg=parameter_array)
+                self.sig_infoDialog.emit('文件名指令已发送')
         # 处理其他设备状态
         else:
             self.sig_errorDialog.emit('Machine Status Error.')
-            self.trans_status(self.MachineStatus.Ready)
+            self.tranStatus(self.MachineStatus.Ready)
             time.sleep(0.05)
             return self.fySetCameraParameter(parameter_array, parameter_index)
 
     def getSendMsgByIndex(self, parameter_index, num_array):
         """根据参数索引获取发送消息"""
-        if parameter_index < 4:
+        if parameter_index == 0:
             return self.StdData.arrS2ROI1
-        elif 4 <= parameter_index <= 8:
+        elif parameter_index == 4:
             return self.StdData.arrS2CAM1
-        elif 9 <= parameter_index < 12:
+        elif 8 <= parameter_index < 11:
             sendMsg = self.StdData.arrS2MODE
             sendMsg[5] = num_array[parameter_index - 8]
             return sendMsg
-        elif parameter_index == 12:
+        elif parameter_index == 11:
             return self.StdData.arrS2NAME
         else:
             return None
@@ -579,7 +583,7 @@ class FloatingYarn(Can_Derive, QObject):
                 return True
             else:
                 self.sig_errorDialog.emit('Machine Status Error.')
-                self.trans_status(self.MachineStatus.Ready)
+                self.tranStatus(self.MachineStatus.Ready)
                 self.fyStartDetect()
         else:
             return False
@@ -597,7 +601,8 @@ class FloatingYarn(Can_Derive, QObject):
                 rec_msg, rec_flag = self.fySendDataAndWait(message=self.StdData.arrRE2PC)
                 if compare_arr_ctypes_(input_arr=rec_msg, target_arr=self.StdData.arrPCO):
                     print('PIC:下位机处于PCO')
-                    self.fySendDelayData(self.StdData.arrACK, delay_time=10)
+                    self.fyCanSendData(self.StdData.arrACK)
+                    time.sleep(0.05)
                     if self.fyCheckSlaveStatus():
                         if self.__selfStatus == self.MachineStatus.PIC:
                             print('下位机状态已经是PIC')
@@ -619,10 +624,11 @@ class FloatingYarn(Can_Derive, QObject):
                     self.fyReceiveImage()
                     return True
             elif self.__selfStatus == self.MachineStatus.PIC:
-                self.__recImageFlag = True
-                self.recProcessDataArr.clear()
-                self.__recMsgFinishIndex = 0
+                time.sleep(0.05)
                 self.fyCanSendData(self.StdData.arrSTA)
+                self.recProcessDataArr.clear()
+                self.__recImageFlag = True
+                self.__recMsgFinishIndex = 0
                 return True
             else:
                 self.sig_errorDialog.emit('Machine Status Error.')
@@ -631,7 +637,7 @@ class FloatingYarn(Can_Derive, QObject):
             return False
 
     # 状态转换
-    def trans_status(self, target_status):
+    def tranStatus(self, target_status):
         if not self.fyCheckSlaveStatus():
             return -2
         status_map = {
@@ -653,6 +659,9 @@ class FloatingYarn(Can_Derive, QObject):
             self.MachineStatus.Open: {
                 self.MachineStatus.Ready: self.StdData.arrOP2RE,
             },
+            self.MachineStatus.MSG_END: {
+                self.MachineStatus.Ready: self.StdData.arrEND,
+            },
             self.MachineStatus.SQL_EDIT: {
                 self.MachineStatus.Ready: self.StdData.arrBA2RE,
             }
@@ -668,7 +677,7 @@ class FloatingYarn(Can_Derive, QObject):
             return -1
 
     def fyTrans2Ready(self):
-        self.trans_status(self.MachineStatus.Ready)
+        self.tranStatus(self.MachineStatus.Ready)
 
 
 class CanReceiverThread(FYCanThread):
