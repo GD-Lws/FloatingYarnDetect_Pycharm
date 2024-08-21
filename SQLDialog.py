@@ -1,10 +1,15 @@
+import string
+import time
+
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QDialog, QMessageBox, QListWidgetItem, QRadioButton, QTableWidgetItem
 
-from SQLMsgWidget import SQLMsgWidget
 from sql_dialog_layout import Ui_Dialog
 
 
 class SQLDialog(QDialog, Ui_Dialog):
+    sig_filename = pyqtSignal(str)
+
     def __init__(self, parent=None, floating_yarn=None):
         super(SQLDialog, self).__init__(parent)
         self.setupUi(self)
@@ -14,18 +19,26 @@ class SQLDialog(QDialog, Ui_Dialog):
         self.pushButton_togglaSqlData.clicked.connect(self.toggleSqlData)
         self.pushButton_dropSqlData.clicked.connect(self.dropSqlData)
         self.pushButton_dropSqlAllData.clicked.connect(self.dropSqlAllData)
-        self.floating_yarn.sig_sqlTableNameList.connect(self.add_items_to_table)
-
+        self.floating_yarn.sig_sqlTableNameList.connect(self.addItems2Table)
 
     def loadSqlData(self):
         # 实现读取数据的逻辑
+        self.floating_yarn.fyTrans2Ready()
+        time.sleep(0.05)
         self.floating_yarn.fySetSQLState(mission=1)
+        time.sleep(0.05)
+        self.floating_yarn.fyTrans2Ready()
 
     def toggleSqlData(self):
         # 实现切换数据的逻辑
-        self.floating_yarn.fySetSQLState(mission=2)
+        selectArray = self.getSelectedRadioButtonFromTable()
+        if len(selectArray):
+            for data in selectArray:
+                self.floating_yarn.fySetSQLState(mission=2, byteName=data)
+            self.floating_yarn.fyTrans2Ready()
+            self.sig_filename.emit(selectArray[0])
 
-    def add_items_to_table(self, data_list):
+    def addItems2Table(self, data_list):
         # 确保表格的列数和标题设置正确
         self.tableWidget_recTab.setColumnCount(3)
         self.tableWidget_recTab.setHorizontalHeaderLabels(["序号", "表名", "选择"])
@@ -53,12 +66,23 @@ class SQLDialog(QDialog, Ui_Dialog):
     def dropSqlData(self):
         # 实现删除数据的逻辑
         if self.show_confirm_dialog():
-            self.floating_yarn.fySetSQLState(mission=3)
+            selectArray = self.getSelectedRadioButtonFromTable()
+            if len(selectArray):
+                for data in selectArray:
+                    self.floating_yarn.fySetSQLState(mission=3, byteName=data)
+                time.sleep(0.05)
+                self.loadSqlData()
+                time.sleep(0.05)
+                self.floating_yarn.fyTrans2Ready()
 
     def dropSqlAllData(self):
         # 实现删除数据的逻辑
         if self.show_confirm_dialog():
             self.floating_yarn.fySetSQLState(mission=4)
+            time.sleep(0.05)
+            self.loadSqlData()
+            time.sleep(0.05)
+            self.floating_yarn.fyTrans2Ready()
 
     def show_confirm_dialog(self):
         # 创建一个QMessageBox
@@ -76,3 +100,15 @@ class SQLDialog(QDialog, Ui_Dialog):
             return True
         else:
             return False
+
+    def getSelectedRadioButtonFromTable(self):
+        selected_filename = []
+        for row in range(self.tableWidget_recTab.rowCount()):
+            radio_button = self.tableWidget_recTab.cellWidget(row, 2)
+            if radio_button and radio_button.isChecked():
+                # 获取第二列（文件名列）的文件名
+                filename_item = self.tableWidget_recTab.item(row, 1)
+                if filename_item:
+                    selected_filename.append(filename_item.text())
+                break  # 找到选中的单选框后退出循环
+        return selected_filename

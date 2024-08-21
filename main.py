@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QGraphicsPixmapItem, QGra
 from pyqt5_plugins.examplebutton import QtWidgets
 
 import candriver_layout
-from FloatingYarn import FloatingYarn, showErrorDialog, value2CtypeArray
+from FloatingYarn import FloatingYarn, showErrorDialog, numValue2CtypeArray, strValue2CtypeArray, showInfoDialog
 from SQLDialog import SQLDialog
 
 floatingYarn = None
@@ -48,10 +48,10 @@ class MainWindow:
         self.ui_manager = candriver_layout.Ui_MainWindow()
         self.ui_manager.setupUi(self.MainWindow)
         self.printer = ListWidgetPrinter(self.ui_manager.listWidget_log)
+        self.sqlDialog = SQLDialog(floating_yarn=self.floating_yarn)
         sys.stdout = self.printer  # 重定向 print 到 ListWidgetPrinter
         self.uiConnectInit()
         self.setTheUIDefaultValue()
-        self.sqlDialog = SQLDialog(floating_yarn=self.floating_yarn)
 
     def run(self):
         self.MainWindow.show()
@@ -74,7 +74,9 @@ class MainWindow:
         self.ui_manager.listWidget_rec.addItem(msg)
 
     def roiParameterSet(self, roi_params):
-        roi_arrays = [value2CtypeArray(param, length=4) for param in roi_params]
+        roi_arrays = [numValue2CtypeArray(param, length=4) for param in roi_params]
+        self.floating_yarn.fyTrans2Ready()
+        time.sleep(0.05)
         # 组合数组并设置相机参数
         for i in range(4):
             combined_array = combine_arrays(roi_arrays[i * 2], roi_arrays[i * 2 + 1])
@@ -95,6 +97,8 @@ class MainWindow:
         self.roiParameterSet(roi_params)
 
     def cameraParameterSet(self):
+        self.floating_yarn.fyTrans2Ready()
+        time.sleep(0.05)
         # 注意顺序不能改动ET->ISO->FD->ZR
         camera_params = [
             self.ui_manager.edit_par_ExposureTime.text(),
@@ -102,7 +106,7 @@ class MainWindow:
             self.ui_manager.edit_par_focusDis.text(),
             self.ui_manager.edit_par_ZoomRatio.text()
         ]
-        camera_arrays = [value2CtypeArray(param, length=8) for param in camera_params]
+        camera_arrays = [numValue2CtypeArray(param, length=8) for param in camera_params]
         for i in range(4):
             self.floating_yarn.fySetCameraParameter(camera_arrays[i], i + 4)
 
@@ -121,7 +125,7 @@ class MainWindow:
         self.ui_manager.edit_par_ISO.setText('1200')
         self.ui_manager.edit_par_focusDis.setText('4.12')
         self.ui_manager.edit_par_ZoomRatio.setText('1.0')
-        self.ui_manager.progressBar_picture.setValue(0)
+        self.ui_manager.progressBar_piccture.setValue(0)
         font = self.ui_manager.label_detect_flag.font()  # 获取当前的字体
         font.setPointSize(12)  # 设置新的字体大小
         self.ui_manager.label_detect_flag.setFont(font)  # 应用新的字体
@@ -136,6 +140,7 @@ class MainWindow:
         self.ui_manager.button_filenameSet.clicked.connect(self.buttonSetFileName)
         self.ui_manager.button_clearmsg.clicked.connect(self.clearListMsg)
         self.ui_manager.button_parSet.clicked.connect(self.cameraParameterSet)
+        # self.ui_manager.button_ge
 
         self.ui_manager.button_driver_disconnect.clicked.connect(self.floating_yarn.fyCanClose)
         self.ui_manager.button_getImage.clicked.connect(self.floating_yarn.fyReceiveImage)
@@ -145,6 +150,7 @@ class MainWindow:
         self.ui_manager.button_startdetect.clicked.connect(self.floating_yarn.fyStartDetect)
         self.ui_manager.button_stopdetect.clicked.connect(self.floating_yarn.fyStopDetect)
         self.ui_manager.button_SQLShow.clicked.connect(self.openSqlDialog)
+        self.ui_manager.button_parGet.clicked.connect(self.getCameraParams)
 
         self.ui_manager.comboBox_ModeSelect.currentIndexChanged.connect(self.comboxDetectModeChange)
 
@@ -153,6 +159,14 @@ class MainWindow:
         self.floating_yarn.sig_statusUpdated.connect(self.updateFyStatus)
         self.floating_yarn.sig_progressValue.connect(self.updateProgressBar)
         self.floating_yarn.sig_canStatus.connect(self.uiSetButtonStatus)
+        self.floating_yarn.sig_cameraPar.connect(self.getCameraParams2EditText)
+        self.floating_yarn.sig_errorDialog.connect(self.showErrorDialog)
+        self.floating_yarn.sig_infoDialog.connect(self.showInfoDialog)
+
+        self.sqlDialog.sig_filename.connect(self.updateFileName)
+
+    def updateFileName(self, filename):
+        self.ui_manager.edit_par_FileName.setText(filename)
 
     def uiSetButtonStatus(self, status, index):
         if index == 0:
@@ -162,12 +176,12 @@ class MainWindow:
             self.ui_manager.button_getImage.setEnabled(status)
             self.ui_manager.button_GetStatus.setEnabled(status)
             self.ui_manager.button_stopimage.setEnabled(status)
-            self.ui_manager.button_parReload.setEnabled(status)
+            self.ui_manager.button_parGet.setEnabled(status)
             self.ui_manager.button_parSave.setEnabled(status)
             self.ui_manager.button_startdetect.setEnabled(status)
             self.ui_manager.button_stopdetect.setEnabled(status)
             self.ui_manager.button_Log.setEnabled(status)
-            # self.ui_manager.button_SQLShow.setEnabled(status)
+            self.ui_manager.button_SQLShow.setEnabled(status)
             self.ui_manager.button_filenameSet.setEnabled(status)
         elif index == 1:
             self.uiSetButtonStatus(status, 0)
@@ -211,7 +225,7 @@ class MainWindow:
         self.ui_manager.label_operatemode.setText(mode.replace("MachineOperate", "模式:"))
 
     def updateProgressBar(self, progress):
-        self.ui_manager.progressBar_picture.setValue(progress)
+        self.ui_manager.progressBar_piccture.setValue(progress)
 
     def clearListMsg(self):
         self.ui_manager.listWidget_log.clear()
@@ -234,18 +248,62 @@ class MainWindow:
                     QMessageBox.warning(self.MainWindow, '输入警告', '输入的目标表名过长，已自动截断。')
                 else:
                     print('User input:', text)
-                self.ui_manager.edit_par_FileName.setText(text)
+                self.updateFileName(text)
                 # self.setUpFileName(filename=text)
 
     def buttonSetFileName(self):
         filename = self.ui_manager.edit_par_FileName.text()
+        # 检查文件名是否以数字开头
+        if filename and filename[0].isdigit():
+            # 自动添加前缀，如 "_"，也可以提示用户重新输入
+            filename = "_" + filename
+            self.updateFileName(filename)
+            # 提示用户
+            QtWidgets.QMessageBox.warning(self.MainWindow, "文件名错误", "文件名不能以数字开头，已自动添加前缀 '_'。")
+        # 继续设置文件名
         self.setUpFileName(filename)
 
     def setUpFileName(self, filename):
-        filename_array = value2CtypeArray(filename, length=8)
+        filename_array = strValue2CtypeArray(filename, length=8)
+        self.floating_yarn.fyTrans2Ready()
+        time.sleep(0.05)
         self.floating_yarn.fySetCameraParameter(filename_array, 12)
         time.sleep(0.05)
         self.floating_yarn.fyTrans2Ready()
+
+    def getCameraParams(self):
+        self.floating_yarn.fyTrans2Ready()
+        time.sleep(0.05)
+        self.floating_yarn.fySetCameraParameter(None, 13)
+
+    def getCameraParams2EditText(self, msgList):
+        if len(msgList) != 12:
+            return
+        # 定义msgList与相应的UI控件之间的映射
+        mapping = [
+            (0, self.ui_manager.edit_par_focusDis),
+            (1, self.ui_manager.edit_par_ISO),
+            (2, self.ui_manager.edit_par_ExposureTime),
+            (3, self.ui_manager.edit_par_ZoomRatio),
+            (4, self.ui_manager.edit_roiRange1_x1),
+            (5, self.ui_manager.edit_roiRange1_y1),
+            (6, self.ui_manager.edit_roiRange1_x2),
+            (7, self.ui_manager.edit_roiRange1_y2),
+            (8, self.ui_manager.edit_roiRange2_x1),
+            (9, self.ui_manager.edit_roiRange2_y1),
+            (10, self.ui_manager.edit_roiRange2_x2),
+            (11, self.ui_manager.edit_roiRange2_y2)
+        ]
+
+        # 循环设置文本
+        for index, edit in mapping:
+            edit.setText(msgList[index])
+
+    def showErrorDialog(self, msg):
+        QMessageBox.critical(self.MainWindow, 'Error', msg, QMessageBox.Ok)
+
+    def showInfoDialog(self, msg):
+        QMessageBox.critical(self.MainWindow, 'Info', msg, QMessageBox.Ok)
 
     def openSqlDialog(self):
         self.sqlDialog.exec_()
