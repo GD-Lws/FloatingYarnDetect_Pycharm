@@ -22,12 +22,11 @@ class SQLDialog(QDialog, Ui_Dialog):
         self.floating_yarn.sig_sqlTableNameList.connect(self.addItems2Table)
 
     def loadSqlData(self):
-        # 实现读取数据的逻辑
+        time.sleep(0.05)
         self.floating_yarn.fyTrans2Ready()
         time.sleep(0.05)
         self.floating_yarn.fySetSQLState(mission=1)
-        time.sleep(0.05)
-        self.floating_yarn.fyTrans2Ready()
+
 
     def toggleSqlData(self):
         # 实现切换数据的逻辑

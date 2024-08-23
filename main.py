@@ -76,7 +76,6 @@ class MainWindow:
     def roiParameterSet(self, roi_params):
         roi_arrays = [numValue2CtypeArray(param, length=4) for param in roi_params]
         self.floating_yarn.fyTrans2Ready()
-        time.sleep(0.05)
         # 组合数组并设置相机参数
         for i in range(4):
             combined_array = combine_arrays(roi_arrays[i * 2], roi_arrays[i * 2 + 1])
@@ -86,13 +85,12 @@ class MainWindow:
 
     def cameraParameterSet(self):
         self.floating_yarn.fyTrans2Ready()
-        time.sleep(0.05)
         # 注意顺序不能改动ET->ISO->FD->ZR
         camera_params = [
-            self.ui_manager.edit_par_ExposureTime.text().strip(),
-            self.ui_manager.edit_par_ISO.text().strip(),
-            self.ui_manager.edit_par_focusDis.text().strip(),
-            self.ui_manager.edit_par_ZoomRatio.text().strip()
+            self.ui_manager.edit_par_ExposureTime.text().replace("\x00", ""),
+            self.ui_manager.edit_par_ISO.text().replace("\x00", ""),
+            self.ui_manager.edit_par_focusDis.text().replace("\x00", ""),
+            self.ui_manager.edit_par_ZoomRatio.text().replace("\x00", "")
         ]
         camera_arrays = [numValue2CtypeArray(param, length=8) for param in camera_params]
         for i in range(4):
@@ -103,9 +101,7 @@ class MainWindow:
     def comboxDetectModeChange(self, index):
         camera_array = (ctypes.c_uint8 * 8)()
         self.floating_yarn.fySetCameraParameter(camera_array, index + 8)
-        time.sleep(0.05)
         self.floating_yarn.fyTrans2Ready()
-        time.sleep(0.05)
         self.floating_yarn.fyCheckSlaveStatus()
         if index == 2:
             text, ok = QInputDialog.getText(self.MainWindow, 'Input Dialog', 'Enter Target Table name:')
@@ -273,14 +269,11 @@ class MainWindow:
     def setUpFileName(self, filename):
         filename_array = strValue2CtypeArray(filename, length=8)
         self.floating_yarn.fyTrans2Ready()
-        time.sleep(0.05)
         self.floating_yarn.fySetCameraParameter(filename_array, 11)
-        time.sleep(0.05)
         self.floating_yarn.fyTrans2Ready()
 
     def getCameraParams(self):
         self.floating_yarn.fyTrans2Ready()
-        time.sleep(0.05)
         self.floating_yarn.fySetCameraParameter(None, 12)
 
     def getCameraParams2EditText(self, msgList):

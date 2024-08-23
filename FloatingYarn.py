@@ -154,7 +154,7 @@ class FloatingYarn(Can_Derive, QObject):
         # 用于数据接收处理线程
         self.__processorThread = None
         # 用于持续发送当前编织行数
-        self.__knitRow = 0
+        self.knitRow = 0
         self.__sendKnitInfoThread = None
 
         self.__recPicAllSize = 0
@@ -167,6 +167,9 @@ class FloatingYarn(Can_Derive, QObject):
         self._processFlag = False
 
         self.recProcessDataArr = deque()
+        self.__calTime = 0
+
+        self.detectFlag = False
 
     def onTimeout(self):
         """超时处理，弹出错误对话框"""
@@ -210,6 +213,9 @@ class FloatingYarn(Can_Derive, QObject):
         else:
             print(f"{thread_type} thread is not running!")
 
+    def detectResultProcess(self):
+        pass
+
     # 检查结束符号
     def detectSpecificCharacters(self, data_list, target_list):
         msg_finish_set = set(target_list)
@@ -246,6 +252,11 @@ class FloatingYarn(Can_Derive, QObject):
     def processDscImageFlag(self):
         self.dequeToImage()  # 转换数据为图片
         self.fyCanSendData(self.StdData.arrEND)
+        now = time.time()
+        time_difference = now - self.__calTime
+        self.__calTime = 0
+        minutes, seconds = divmod(time_difference, 60)
+        print(f"{minutes}分钟 {seconds}秒")
         self.sig_canStatus.emit(True, 0)
         self.sig_infoDialog.emit('图片接收成功')
 
@@ -334,7 +345,7 @@ class FloatingYarn(Can_Derive, QObject):
                 if self.__recImageFlag:
                     self.startThreadWithTimer(thread_type=0, timeout=20000)  # 开始处理线程
                 else:
-                    self.startThreadWithTimer(thread_type=0, timeout=5000)  # 开始处理线程
+                    self.startThreadWithTimer(thread_type=0, timeout=10000)  # 开始处理线程
 
     def fyCalPicProgressBar(self):
         if self.__recPicAllSize != 0 and self.__recPicCurrentSize != 0:
@@ -364,6 +375,7 @@ class FloatingYarn(Can_Derive, QObject):
 
     # 下位机运行状态检查
     def fyCheckSlaveStatus(self):
+        time.sleep(0.05)
         rec_msg, rec_flag = self.fySendDataAndWait(message=self.StdData.arrSTATUS, timeout_ms=1000)
         if rec_flag:
             if rec_msg[2] == 48:
@@ -391,6 +403,7 @@ class FloatingYarn(Can_Derive, QObject):
             print('当前下位机运行状态')
             print(self.__selfStatus)
             self.sig_statusUpdated.emit(str(self.__selfStatus), str(self.__selfOperateMode))
+            time.sleep(0.05)
             return True
         else:
             print("Failed to receive message.")
@@ -428,12 +441,6 @@ class FloatingYarn(Can_Derive, QObject):
         # 返回接收到的数据和成功标志
         if self.recMsgSaveArr:
             data_rec = self.recMsgSaveArr[-1]
-            # err_flag = True
-            # err_arr = [0x45, 0x72, 0x72]
-            # for i in range(3):
-            #     if data_rec[i] != err_arr[i]:
-            #         err_flag = False
-            # if err_flag:
             return data_rec, True
         else:
             return None, False
@@ -558,16 +565,20 @@ class FloatingYarn(Can_Derive, QObject):
 
     # 开始检测
     def fyStartDetect(self):
+        self.fyTrans2Ready()
         if self.fyCheckSlaveStatus():
             if self.__selfStatus == self.MachineStatus.Ready:
                 rec_msg, rec_flag = self.fySendDataAndWait(message=self.StdData.arrRE2AC)
                 if compare_arr_ctypes_(input_arr=rec_msg, target_arr=self.StdData.arrPCO):
                     print('AC:下位机处于PCO')
-                    self.fySendDelayData(self.StdData.arrACK, delay_time=10)
+                    self.fyCanSendData(self.StdData.arrACK)
+                    time.sleep(0.05)
                     if self.fyCheckSlaveStatus():
                         if self.__selfStatus == self.MachineStatus.Activity:
                             print('下位机状态已经是Activity')
-                            self.fySendDelayData(self.StdData.arrDetect, delay_time=1000)
+                            self.fyCanSendData(self.StdData.arrDetect)
+                            self.detectFlag = True
+                            time.sleep(0.05)
                             self.startThreadWithTimer(thread_type=1, timeout=0)
                             return True
                         else:
@@ -579,11 +590,12 @@ class FloatingYarn(Can_Derive, QObject):
                     self.fyStartDetect()
                     return True
             elif self.__selfStatus == self.MachineStatus.Activity:
-                self.fyCanSendData(self.StdData.arrSTA)
+
+                self.fyCanSendData(self.StdData.arrDetect)
                 return True
             else:
                 self.sig_errorDialog.emit('Machine Status Error.')
-                self.tranStatus(self.MachineStatus.Ready)
+                self.fyTrans2Ready()
                 self.fyStartDetect()
         else:
             return False
@@ -595,7 +607,6 @@ class FloatingYarn(Can_Derive, QObject):
 
     def fyReceiveImage(self):
         self.fyTrans2Ready()
-        time.sleep(0.05)
         if self.fyCheckSlaveStatus():
             if self.__selfStatus == self.MachineStatus.Ready:
                 rec_msg, rec_flag = self.fySendDataAndWait(message=self.StdData.arrRE2PC)
@@ -613,6 +624,7 @@ class FloatingYarn(Can_Derive, QObject):
                             self.__recPicCurrentSize = 0
                             self.sig_progressValue.emit(0)
                             self.sig_canStatus.emit(False, 1)
+                            self.__calTime = time.time()
                             self.__recImageFlag = True
                             return True
                         else:
@@ -640,6 +652,8 @@ class FloatingYarn(Can_Derive, QObject):
     def tranStatus(self, target_status):
         if not self.fyCheckSlaveStatus():
             return -2
+        if target_status == self.__selfStatus:
+            return 1
         status_map = {
             self.MachineStatus.Ready: {
                 self.MachineStatus.PIC: self.StdData.arrRE2PC,
@@ -666,8 +680,6 @@ class FloatingYarn(Can_Derive, QObject):
                 self.MachineStatus.Ready: self.StdData.arrBA2RE,
             }
         }
-        if self.__selfStatus == self.MachineStatus.Ready and target_status == self.MachineStatus.Ready:
-            return 1
         target_data = status_map.get(self.__selfStatus, {}).get(target_status)
         if target_data:
             self.change_send_data(target_data)
@@ -677,7 +689,9 @@ class FloatingYarn(Can_Derive, QObject):
             return -1
 
     def fyTrans2Ready(self):
+        time.sleep(0.05)
         self.tranStatus(self.MachineStatus.Ready)
+        time.sleep(0.05)
 
 
 class CanReceiverThread(FYCanThread):
@@ -706,20 +720,23 @@ class CanProcessorThread(FYCanThread):
                 if self.floating_yarn.recProcessDataArr:
                     data_list = self.floating_yarn.recProcessDataArr[-1]
                     if data_list:
-                        self.floating_yarn.detectSpecificCharacters(
-                            data_list=data_list,
-                            target_list=[8, 9, 10, 11, 12, 13, 14, 15]
-                        )
+                        if self.floating_yarn.detectflag:
+                            pass
+                        else:
+                            self.floating_yarn.detectSpecificCharacters(
+                                data_list=data_list,
+                                target_list=[8, 9, 10, 11, 12, 13, 14, 15]
+                            )
 
 
 class KnitSendThread(FYCanThread):
-    """线程用于发送数据"""
-
     def run(self):
-        if self.floating_yarn is not None:
-            send_data_array = self.floating_yarn.StdData.arrYARN
-            sendRow = self.floating_yarn.__knitRow
-            row_array = numValue2CtypeArray(value_str=sendRow, length=5)
-            for i in range(3, 8):
-                send_data_array[i] = row_array[i - 3]
-            self.floating_yarn.fyCanSendData(send_data_array)
+        while not self.isInterruptionRequested():
+            if self.floating_yarn is not None:
+                send_data_array = self.floating_yarn.StdData.arrYARN
+                sendRow = self.floating_yarn.knitRow
+                row_array = numValue2CtypeArray(value_str=str(sendRow), length=5)
+                for i in range(3, 8):
+                    send_data_array[i] = row_array[i - 3]
+                self.floating_yarn.fyCanSendData(send_data_array)
+                time.sleep(0.05)
