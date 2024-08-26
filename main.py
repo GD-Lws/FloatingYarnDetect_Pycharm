@@ -84,6 +84,7 @@ class MainWindow:
         self.showInfoDialog("设置识别区域成功")
 
     def cameraParameterSet(self):
+        self.uiSetButtonStatus(False, 1)
         self.floating_yarn.fyTrans2Ready()
         # 注意顺序不能改动ET->ISO->FD->ZR
         camera_params = [
@@ -97,6 +98,7 @@ class MainWindow:
             self.floating_yarn.fySetCameraParameter(camera_arrays[i], i + 4)
             time.sleep(0.05)
         self.showInfoDialog("设置参数成功")
+        self.uiSetButtonStatus(True, 0)
 
     def comboxDetectModeChange(self, index):
         camera_array = (ctypes.c_uint8 * 8)()
@@ -182,6 +184,7 @@ class MainWindow:
         self.floating_yarn.sig_cameraPar.connect(self.getCameraParams2EditText)
         self.floating_yarn.sig_errorDialog.connect(self.showErrorDialog)
         self.floating_yarn.sig_infoDialog.connect(self.showInfoDialog)
+        self.floating_yarn.sig_detectResult.connect(self.setDetectFlag)
 
         self.sqlDialog.sig_filename.connect(self.updateFileName)
 
@@ -189,23 +192,32 @@ class MainWindow:
         self.ui_manager.edit_par_FileName.setText(filename)
 
     def uiSetButtonStatus(self, status, index):
-        if index == 0:
-            self.ui_manager.button_parSet.setEnabled(status)
-            self.ui_manager.button_ReadyStatus.setEnabled(status)
-            self.ui_manager.button_roiRange.setEnabled(status)
-            self.ui_manager.button_getImage.setEnabled(status)
-            self.ui_manager.button_GetStatus.setEnabled(status)
-            self.ui_manager.button_stopimage.setEnabled(status)
-            self.ui_manager.button_parGet.setEnabled(status)
-            self.ui_manager.button_parSave.setEnabled(status)
-            self.ui_manager.button_startdetect.setEnabled(status)
-            self.ui_manager.button_stopdetect.setEnabled(status)
-            self.ui_manager.button_Log.setEnabled(status)
-            self.ui_manager.button_SQLShow.setEnabled(status)
-            self.ui_manager.button_filenameSet.setEnabled(status)
-        elif index == 1:
-            self.uiSetButtonStatus(status, 0)
-            self.ui_manager.button_stopimage.setEnabled(True)
+        button_list = [
+            self.ui_manager.button_parSet,
+            self.ui_manager.button_ReadyStatus,
+            self.ui_manager.button_roiRange,
+            self.ui_manager.button_getImage,
+            self.ui_manager.button_GetStatus,
+            self.ui_manager.button_stopimage,
+            self.ui_manager.button_parGet,
+            self.ui_manager.button_parSave,
+            self.ui_manager.button_startdetect,
+            self.ui_manager.button_stopdetect,
+            self.ui_manager.button_Log,
+            self.ui_manager.button_SQLShow,
+            self.ui_manager.button_filenameSet,
+        ]
+
+        if 1 <= index < len(button_list) + 1:
+            for button in button_list:
+                button.setEnabled(not status)
+            button_list[index - 1].setEnabled(status)
+        elif index == 0:
+            # 启用或禁用所有按钮
+            for button in button_list:
+                button.setEnabled(status)
+        else:
+            print(f"Index {index} is out of range.")
 
     # 加载图片从文件路径
     def load_image_from_current_directory(self):
@@ -241,6 +253,9 @@ class MainWindow:
         view.setScene(scene)
         view.setSceneRect(scene.itemsBoundingRect())  # 设置场景的矩形
 
+    def setDetectFlag(self, recRow):
+        self.ui_manager.label_detect_flag.setText(recRow)
+
     # 更新下位机状态
     def updateFyStatus(self, status, mode):
         self.ui_manager.label_stateshow.setText(status.replace("MachineStatus", "状态:"))
@@ -255,6 +270,7 @@ class MainWindow:
         self.ui_manager.listWidget_rec.clear()
 
     def buttonSetFileName(self):
+        self.uiSetButtonStatus(False, 13)
         filename = self.ui_manager.edit_par_FileName.text()
         # 检查文件名是否以数字开头
         if filename and filename[0].isdigit():
@@ -265,6 +281,7 @@ class MainWindow:
             QtWidgets.QMessageBox.warning(self.MainWindow, "文件名错误", "文件名不能以数字开头，已自动添加前缀 '_'。")
         # 继续设置文件名
         self.setUpFileName(filename)
+        self.uiSetButtonStatus(True, 0)
 
     def setUpFileName(self, filename):
         filename_array = strValue2CtypeArray(filename, length=8)
@@ -273,6 +290,7 @@ class MainWindow:
         self.floating_yarn.fyTrans2Ready()
 
     def getCameraParams(self):
+        self.uiSetButtonStatus(False, 7)
         self.floating_yarn.fyTrans2Ready()
         self.floating_yarn.fySetCameraParameter(None, 12)
 
@@ -298,6 +316,7 @@ class MainWindow:
         # 循环设置文本
         for index, edit in mapping:
             edit.setText(msgList[index])
+        self.uiSetButtonStatus(True, 0)
 
     def showErrorDialog(self, msg):
         QMessageBox.critical(self.MainWindow, 'Error', msg, QMessageBox.Ok)

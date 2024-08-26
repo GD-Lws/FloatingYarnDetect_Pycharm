@@ -109,6 +109,7 @@ class FloatingYarn(Can_Derive, QObject):
 
     sig_errorDialog = pyqtSignal(str)
     sig_infoDialog = pyqtSignal(str)
+    sig_detectResult = pyqtSignal(str)
 
     class MachineStatus(Enum):
         Close = 0
@@ -213,8 +214,17 @@ class FloatingYarn(Can_Derive, QObject):
         else:
             print(f"{thread_type} thread is not running!")
 
-    def detectResultProcess(self):
-        pass
+    def detectResultProcess(self, datalist):
+        if datalist[0] == 0x4B:
+            # 接收行数
+            recRow = decimal_to_string(datalist[1:7])
+            if datalist[4] == 0x38:
+                recRow = recRow + ":False"
+                self.sig_detectResult.emit(recRow)
+            else:
+                recRow = recRow + ":True"
+                self.sig_detectResult.emit(recRow)
+                self.sig_errorDialog.emit("检测到浮纱")
 
     # 检查结束符号
     def detectSpecificCharacters(self, data_list, target_list):
@@ -579,7 +589,10 @@ class FloatingYarn(Can_Derive, QObject):
                             self.fyCanSendData(self.StdData.arrDetect)
                             self.detectFlag = True
                             time.sleep(0.05)
+                            # 发送数据
                             self.startThreadWithTimer(thread_type=1, timeout=0)
+                            # 接收数据
+                            self.startThreadWithTimer(thread_type=0, timeout=0)
                             return True
                         else:
                             return False
@@ -623,7 +636,7 @@ class FloatingYarn(Can_Derive, QObject):
                             self.__recPicAllSize = calNumberArray(len_msg)
                             self.__recPicCurrentSize = 0
                             self.sig_progressValue.emit(0)
-                            self.sig_canStatus.emit(False, 1)
+                            self.sig_canStatus.emit(True, 6)
                             self.__calTime = time.time()
                             self.__recImageFlag = True
                             return True
@@ -720,8 +733,8 @@ class CanProcessorThread(FYCanThread):
                 if self.floating_yarn.recProcessDataArr:
                     data_list = self.floating_yarn.recProcessDataArr[-1]
                     if data_list:
-                        if self.floating_yarn.detectflag:
-                            pass
+                        if self.floating_yarn.detectFlag:
+                            self.floating_yarn.detectResultProcess(data_list=data_list)
                         else:
                             self.floating_yarn.detectSpecificCharacters(
                                 data_list=data_list,
