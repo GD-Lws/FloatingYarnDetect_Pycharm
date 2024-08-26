@@ -5,7 +5,6 @@ from datetime import datetime
 from enum import Enum
 
 from PyQt5.QtCore import pyqtSignal, QObject, QThread, QMutex, QTimer, QWaitCondition, QMutexLocker
-from PyQt5.QtWidgets import QMessageBox
 
 from CAN_TOOL.CANMessageData import CANMessageData
 from CAN_TOOL.Can_Derive import Can_Derive
@@ -27,12 +26,14 @@ def numValue2CtypeArray(value_str, length=5):
     return ctype_array
 
 
-def decimal_to_string(decimal_values):
+# 十进制转Str
+def decimal2String(decimal_values):
     # 将每个十进制数转换为对应的ASCII字符
     ascii_string = ''.join(chr(int(hex_value)) for hex_value in decimal_values)
     return ascii_string
 
 
+# 字符串转ctype数组
 def strValue2CtypeArray(value_str, length=8):
     ctype_array = (ctypes.c_uint8 * length)()
     for i, char in enumerate(value_str):
@@ -44,6 +45,7 @@ def strValue2CtypeArray(value_str, length=8):
     return ctype_array
 
 
+# 计算图片数据长度
 def calNumberArray(input_list):
     if len(input_list) != 8:
         return -1
@@ -55,6 +57,7 @@ def calNumberArray(input_list):
     return outputData
 
 
+# 接收数据转为str
 def recList2Str(input_list, timeStamp=True):
     """将十进制 ASCII 列表转换为字符串，并附加接收时间戳"""
     message_str = ''
@@ -67,7 +70,6 @@ def recList2Str(input_list, timeStamp=True):
     if timeStamp:
         # 获取当前时间戳
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
         # 将时间戳添加到字符串末尾
         message_str += f' (Received at: {timestamp})'
 
@@ -75,6 +77,7 @@ def recList2Str(input_list, timeStamp=True):
 
 
 # input_arr 是接收的数据
+# 判断接收数据是否和目标数据相同
 def compare_arr_ctypes_(input_arr, target_arr):
     arrTarget_int = [int(x) for x in target_arr]
     for i in range(8):
@@ -83,6 +86,7 @@ def compare_arr_ctypes_(input_arr, target_arr):
     return True
 
 
+# 数据库反馈数据提取
 def sqlListExtract(recList, startChar, endChar):
     ansList = []
     targetFlag = False
@@ -99,16 +103,24 @@ def sqlListExtract(recList, startChar, endChar):
 
 
 class FloatingYarn(Can_Derive, QObject):
+    # 接收信息信号
     sig_messageReceived = pyqtSignal(str)
+    # 下位机状态更新
     sig_statusUpdated = pyqtSignal(str, str)
+    # 照片传输完成
     sig_imageProcess = pyqtSignal()
+    # 照片接收进度
     sig_progressValue = pyqtSignal(int)
     sig_canStatus = pyqtSignal(bool, int)
+    # 数据库读取列表
     sig_sqlTableNameList = pyqtSignal(list)
+    # 相机读取数据
     sig_cameraPar = pyqtSignal(list)
-
+    # 错误信号窗口
     sig_errorDialog = pyqtSignal(str)
+    # 提示信号窗口
     sig_infoDialog = pyqtSignal(str)
+    # 检测结果信号
     sig_detectResult = pyqtSignal(str)
 
     class MachineStatus(Enum):
@@ -139,11 +151,11 @@ class FloatingYarn(Can_Derive, QObject):
         self.__canStatus = False
 
         self.__recMsgFinishIndex = 0
-        self.__finishMsgArr = [8, 9, 10, 11, 12, 13, 14, 15]
-        self.__startMsgArr = [0, 1, 2, 3, 4, 5, 6, 7]
+        self.finishMsgArr = [8, 9, 10, 11, 12, 13, 14, 15]
+        self.startMsgArr = [0, 1, 2, 3, 4, 5, 6, 7]
         self.__imageSavePath = temp_photo_storage_path
 
-        # 启动接收线程
+        # 同步锁
         self.__waitCondition = QWaitCondition()
         self.__Mutex = QMutex()
 
@@ -177,6 +189,7 @@ class FloatingYarn(Can_Derive, QObject):
         print("Timeout occurred. No response received.")
         self.sig_errorDialog.emit('Timeout occurred. No response received.')  # None 为父窗口
 
+    # 开始线程并带有定时器（当线程运行超过设定时间则停止线程）
     def startThreadWithTimer(self, thread_type, timeout=0):
         if thread_type == 0:
             thread = self.__processorThread
@@ -202,6 +215,7 @@ class FloatingYarn(Can_Derive, QObject):
         else:
             print(f"{thread_type} thread is running!")
 
+    # 停止处理线程
     def stopProcessingThread(self, thread_type):
         if thread_type == 0 and self.__processorThread is not None:
             self.__processorThread.requestInterruption()
@@ -214,11 +228,12 @@ class FloatingYarn(Can_Derive, QObject):
         else:
             print(f"{thread_type} thread is not running!")
 
-    def detectResultProcess(self, datalist):
-        if datalist[0] == 0x4B:
+    # 用于检测结果反馈
+    def detectResultProcess(self, fatalist):
+        if fatalist[0] == 0x4B:
             # 接收行数
-            recRow = decimal_to_string(datalist[1:7])
-            if datalist[4] == 0x38:
+            recRow = decimal2String(fatalist[1:7])
+            if fatalist[4] == 0x38:
                 recRow = recRow + ":False"
                 self.sig_detectResult.emit(recRow)
             else:
@@ -259,6 +274,7 @@ class FloatingYarn(Can_Derive, QObject):
                 finish_count = 0
         return False
 
+    # 当检测到结束标识符后处理图片数据
     def processDscImageFlag(self):
         self.dequeToImage()  # 转换数据为图片
         self.fyCanSendData(self.StdData.arrEND)
@@ -270,6 +286,7 @@ class FloatingYarn(Can_Derive, QObject):
         self.sig_canStatus.emit(True, 0)
         self.sig_infoDialog.emit('图片接收成功')
 
+    # 当检测到结束标识符后处理相机信息数据
     def processDscCameraFlag(self):
         recMsg = []
         while True:
@@ -284,10 +301,11 @@ class FloatingYarn(Can_Derive, QObject):
         # self.recProcessDataArr[-1]
         self.recProcessDataArr.pop()
         for data in self.recProcessDataArr:
-            recMsg.append(decimal_to_string(data))
+            recMsg.append(decimal2String(data))
         self.sig_cameraPar.emit(recMsg)
         self.sig_infoDialog.emit('参数获取成功')
 
+    # 当检测到结束标识符后处理数据库数据
     def processDscSQLFlag(self):
         if not self.recProcessDataArr:
             return  # 如果列表为空，则直接返回
@@ -312,7 +330,7 @@ class FloatingYarn(Can_Derive, QObject):
                 return False
             data_list = self.recProcessDataArr.popleft()
             # 调用 detectSpecificCharacters 并检查是否找到 target_list
-            if self.detectSpecificCharacters(data_list, target_list=[0, 1, 2, 3, 4, 5, 6, 7]):
+            if self.detectSpecificCharacters(data_list, target_list=self.startMsgArr):
                 print("找到起始标识符数组")
                 break  # 如果找到 target_list，退出循环
         # end_array = self.recProcessDataArr[-1]
@@ -357,6 +375,7 @@ class FloatingYarn(Can_Derive, QObject):
                 else:
                     self.startThreadWithTimer(thread_type=0, timeout=10000)  # 开始处理线程
 
+    # 计算进度条
     def fyCalPicProgressBar(self):
         if self.__recPicAllSize != 0 and self.__recPicCurrentSize != 0:
             # 计算百分比（浮点数）
@@ -423,9 +442,6 @@ class FloatingYarn(Can_Derive, QObject):
         self.change_send_data(send_data)
         self.can_send_msg()
 
-    def fySendDelayData(self, msg, delay_time=100):
-        QTimer.singleShot(delay_time, lambda: self.fyCanSendData(msg))
-
     # 发送数据并等待接收
     def fySendDataAndWait(self, message, timeout_ms=5000):
         """发送数据并等待接收，带超时机制"""
@@ -455,6 +471,7 @@ class FloatingYarn(Can_Derive, QObject):
         else:
             return None, False
 
+    # 数据库数据信息处理
     def fySetSQLState(self, mission, byteName=None):
         if not self.fyCheckSlaveStatus():
             return False
@@ -498,6 +515,22 @@ class FloatingYarn(Can_Derive, QObject):
             self.sig_errorDialog.emit('Machine Status Error.')
             self.tranStatus(self.MachineStatus.Ready)
             return self.fySetSQLState(mission, byteName)
+
+    # 获取发送数据的标志位（用于参数设置）
+    def getSendMsgByIndex(self, parameter_index, num_array):
+        """根据参数索引获取发送消息"""
+        if parameter_index == 0:
+            return self.StdData.arrS2ROI1
+        elif parameter_index == 4:
+            return self.StdData.arrS2CAM1
+        elif 8 <= parameter_index < 11:
+            sendMsg = self.StdData.arrS2MODE
+            sendMsg[5] = num_array[parameter_index - 8]
+            return sendMsg
+        elif parameter_index == 11:
+            return self.StdData.arrS2NAME
+        else:
+            return None
 
     # parameter_array: 输入数据
     # parameter_index: 功能索引
@@ -547,21 +580,6 @@ class FloatingYarn(Can_Derive, QObject):
             self.tranStatus(self.MachineStatus.Ready)
             time.sleep(0.05)
             return self.fySetCameraParameter(parameter_array, parameter_index)
-
-    def getSendMsgByIndex(self, parameter_index, num_array):
-        """根据参数索引获取发送消息"""
-        if parameter_index == 0:
-            return self.StdData.arrS2ROI1
-        elif parameter_index == 4:
-            return self.StdData.arrS2CAM1
-        elif 8 <= parameter_index < 11:
-            sendMsg = self.StdData.arrS2MODE
-            sendMsg[5] = num_array[parameter_index - 8]
-            return sendMsg
-        elif parameter_index == 11:
-            return self.StdData.arrS2NAME
-        else:
-            return None
 
     def fySecondMessage(self, msg):
         # 延迟调用 fySendDelayAndWaitACK 方法
@@ -616,8 +634,11 @@ class FloatingYarn(Can_Derive, QObject):
     # 检测停止
     def fyStopDetect(self):
         self.stopProcessingThread(1)
-        self.fySendDelayData(self.StdData.arrEND, delay_time=1000)
+        time.sleep(0.05)
+        self.fyCanSendData(send_data=self.StdData.arrEND)
+        time.sleep(0.05)
 
+    # 向下位机发送接收图片请求
     def fyReceiveImage(self):
         self.fyTrans2Ready()
         if self.fyCheckSlaveStatus():
@@ -701,12 +722,14 @@ class FloatingYarn(Can_Derive, QObject):
         else:
             return -1
 
+    # 转为准备状态
     def fyTrans2Ready(self):
         time.sleep(0.05)
         self.tranStatus(self.MachineStatus.Ready)
         time.sleep(0.05)
 
 
+# 接收数据线程
 class CanReceiverThread(FYCanThread):
     def run(self):
         while not self.isInterruptionRequested():
@@ -719,6 +742,7 @@ class CanReceiverThread(FYCanThread):
                 QThread.msleep(100)  # 延时，以避免占用过多 CPU 资源
 
 
+# 接收数据处理线程
 class CanProcessorThread(FYCanThread):
     def run(self):
         if self.floating_yarn is None:
@@ -738,10 +762,11 @@ class CanProcessorThread(FYCanThread):
                         else:
                             self.floating_yarn.detectSpecificCharacters(
                                 data_list=data_list,
-                                target_list=[8, 9, 10, 11, 12, 13, 14, 15]
+                                target_list=self.floating_yarn.finishMsgArr
                             )
 
 
+# 编织信息发送
 class KnitSendThread(FYCanThread):
     def run(self):
         while not self.isInterruptionRequested():

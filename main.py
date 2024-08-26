@@ -294,6 +294,7 @@ class MainWindow:
         self.floating_yarn.fyTrans2Ready()
         self.floating_yarn.fySetCameraParameter(None, 12)
 
+    # 设置编辑参数
     def getCameraParams2EditText(self, msgList):
         if len(msgList) != 12:
             return
