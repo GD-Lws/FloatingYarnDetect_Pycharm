@@ -99,6 +99,9 @@ class SQLDialog(QDialog, Ui_Dialog):
         else:
             return False
 
+    def findSQLDataByKey(self):
+        key = self.lineEdFfindRowInfo
+
     def getSelectedRadioButtonFromTable(self):
         selected_filename = []
         for row in range(self.tableWidget_recTab.rowCount()):
