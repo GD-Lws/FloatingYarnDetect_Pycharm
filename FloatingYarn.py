@@ -168,6 +168,7 @@ class FloatingYarn(Can_Derive, QObject):
         self.__processorThread = None
         # 用于持续发送当前编织行数
         self.knitRow = 0
+        self.knitVelocity = 0
         self.__sendKnitInfoThread = None
 
         self.__recPicAllSize = 0
@@ -773,8 +774,13 @@ class KnitSendThread(FYCanThread):
             if self.floating_yarn is not None:
                 send_data_array = self.floating_yarn.StdData.arrYARN
                 sendRow = self.floating_yarn.knitRow
-                row_array = numValue2CtypeArray(value_str=str(sendRow), length=5)
-                for i in range(3, 8):
-                    send_data_array[i] = row_array[i - 3]
+                sendVelocity = self.floating_yarn.knitVelocity
+                rowArray = numValue2CtypeArray(value_str=str(sendRow), length=4)
+                velArray = numValue2CtypeArray(value_str=str(sendVelocity), length=3)
+                # Y ROW(4) VEL(3)
+                for i in range(1, 5):
+                    send_data_array[i] = rowArray[i - 1]
+                for i in range(5, 8):
+                    send_data_array[i] = velArray[i - 5]
                 self.floating_yarn.fyCanSendData(send_data_array)
                 time.sleep(0.05)

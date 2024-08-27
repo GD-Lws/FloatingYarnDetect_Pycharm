@@ -27,7 +27,7 @@
 - 下位机状态模式获取，Ready切换
 ### 下位机识别参数的设置读取
 - 拍摄参数的设置读取(getCameraParams2EditText)
-- 文件名（表名）的设置和读取()
+- 文件名（表名）的设置和读取(buttonSetFileName)
 - 下位机数据库当前存储表名读取
 - 下位机数据库删除所有表
 - 下位机切换当前表
@@ -52,5 +52,19 @@
 | Record        | 样本数据采集模式 |
 
 
+## 数据库主要功能函数
+1. loadSqlData
+2. toggleSqlData
+3. addItems2Table 
+4. dropSqlData 
+5. dropSqlAllData 
+6. getSelectedRadioButtonFromTable
+7. fySetSQLState
+
+## 相机参数主要功能函数
+1. fySetCameraParameter
+2. cameraParameterSet
+3. roiParameterSet
+4. getCameraParams2EditText
 
 

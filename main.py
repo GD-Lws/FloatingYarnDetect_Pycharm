@@ -176,7 +176,7 @@ class MainWindow:
 
         self.ui_manager.comboBox_ModeSelect.currentIndexChanged.connect(self.comboxDetectModeChange)
 
-        self.floating_yarn.sig_imageProcess.connect(self.load_image_from_current_directory)
+        self.floating_yarn.sig_imageProcess.connect(self.loadImageFromCurrentDirectory)
         self.floating_yarn.sig_messageReceived.connect(self.displayRecMessage)
         self.floating_yarn.sig_statusUpdated.connect(self.updateFyStatus)
         self.floating_yarn.sig_progressValue.connect(self.updateProgressBar)
@@ -220,7 +220,7 @@ class MainWindow:
             print(f"Index {index} is out of range.")
 
     # 加载图片从文件路径
-    def load_image_from_current_directory(self):
+    def loadImageFromCurrentDirectory(self):
         # 构造图片的相对路径
         # 加载图片
         scene = QtWidgets.QGraphicsScene()

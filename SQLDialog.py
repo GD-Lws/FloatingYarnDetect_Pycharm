@@ -27,7 +27,6 @@ class SQLDialog(QDialog, Ui_Dialog):
         time.sleep(0.05)
         self.floating_yarn.fySetSQLState(mission=1)
 
-
     def toggleSqlData(self):
         # 实现切换数据的逻辑
         selectArray = self.getSelectedRadioButtonFromTable()
