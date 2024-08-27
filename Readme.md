@@ -67,4 +67,5 @@
 3. roiParameterSet
 4. getCameraParams2EditText
 
-
+[image](https://github.com/GD-Lws/FloatingYarnDetect_Pycharm/blob/master/Picture/PhoneShow.png)
+[image](https://github.com/GD-Lws/FloatingYarnDetect_Pycharm/blob/master/Picture/SQLTool.png)
