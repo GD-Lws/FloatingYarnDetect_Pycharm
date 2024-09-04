@@ -180,7 +180,7 @@ class MainWindow:
         self.floating_yarn.sig_messageReceived.connect(self.displayRecMessage)
         self.floating_yarn.sig_statusUpdated.connect(self.updateFyStatus)
         self.floating_yarn.sig_progressValue.connect(self.updateProgressBar)
-        self.floating_yarn.sig_canStatus.connect(self.uiSetButtonStatus)
+        self.floating_yarn.sig_buttonStatus.connect(self.uiSetButtonStatus)
         self.floating_yarn.sig_cameraPar.connect(self.getCameraParams2EditText)
         self.floating_yarn.sig_errorDialog.connect(self.showErrorDialog)
         self.floating_yarn.sig_infoDialog.connect(self.showInfoDialog)
@@ -271,7 +271,11 @@ class MainWindow:
 
     def buttonSetFileName(self):
         self.uiSetButtonStatus(False, 13)
-        filename = self.ui_manager.edit_par_FileName.text()
+        filename = self.ui_manager.edit_par_FileName.text().strip()
+        if len(filename) == 0:
+            QtWidgets.QMessageBox.warning(self.MainWindow, "文件名错误", "文件名不能为空。")
+            self.uiSetButtonStatus(True, 0)
+            return
         # 检查文件名是否以数字开头
         if filename and filename[0].isdigit():
             # 自动添加前缀，如 "_"，也可以提示用户重新输入

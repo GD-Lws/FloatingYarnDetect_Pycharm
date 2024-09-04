@@ -20,8 +20,10 @@ class SQLDialog(QDialog, Ui_Dialog):
         self.pushButton_dropSqlData.clicked.connect(self.dropSqlData)
         self.pushButton_dropSqlAllData.clicked.connect(self.dropSqlAllData)
         self.floating_yarn.sig_sqlTableNameList.connect(self.addItems2Table)
+        self.floating_yarn.sig_sqlTableData.connect(self.querySqlData)
 
     def loadSqlData(self):
+        self.pushButton_loadSqlData.setEnabled(False)
         time.sleep(0.05)
         self.floating_yarn.fyTrans2Ready()
         time.sleep(0.05)
@@ -35,6 +37,9 @@ class SQLDialog(QDialog, Ui_Dialog):
                 self.floating_yarn.fySetSQLState(mission=2, byteName=data)
             self.floating_yarn.fyTrans2Ready()
             self.sig_filename.emit(selectArray[0])
+
+    def querySqlData(self, rec_str):
+        self.listView_cameraParm.addItem(rec_str)
 
     def addItems2Table(self, data_list):
         # 确保表格的列数和标题设置正确
@@ -60,6 +65,7 @@ class SQLDialog(QDialog, Ui_Dialog):
                 # 填充数据列
                 data_item = QTableWidgetItem(data)
                 self.tableWidget_recTab.setItem(row, 1, data_item)
+        self.pushButton_loadSqlData.setEnabled(True)
 
     def dropSqlData(self):
         # 实现删除数据的逻辑
@@ -100,7 +106,10 @@ class SQLDialog(QDialog, Ui_Dialog):
             return False
 
     def findSQLDataByKey(self):
-        key = self.lineEdFfindRowInfo
+        key = self.lineEdit_FindRowInfo.text().strip()  # 去除前后空格
+        self.listView_cameraParm.clear()
+        if key:  # 判断key不为空
+            self.floating_yarn.fySetSQLState(mission=5, byteName=key)
 
     def getSelectedRadioButtonFromTable(self):
         selected_filename = []

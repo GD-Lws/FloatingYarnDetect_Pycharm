@@ -47,14 +47,19 @@ def strValue2CtypeArray(value_str, length=8):
 
 # 计算图片数据长度
 def calNumberArray(input_list):
+    if input_list is None:
+        return -1
     if len(input_list) != 8:
         return -1
     outputData = 0
-    for i in range(8):
-        data = input_list[i] - 48
-        multiData = 10 ** (7 - i)
-        outputData = outputData + data * multiData
-    return outputData
+    if input_list[0] != 0x76:
+        for i in range(1,8):
+            data = input_list[i] - 48
+            multiData = 10 ** (7 - i)
+            outputData = outputData + data * multiData
+        return outputData
+    else:
+        return -1
 
 
 # 接收数据转为str
@@ -111,7 +116,7 @@ class FloatingYarn(Can_Derive, QObject):
     sig_imageProcess = pyqtSignal()
     # 照片接收进度
     sig_progressValue = pyqtSignal(int)
-    sig_canStatus = pyqtSignal(bool, int)
+    sig_buttonStatus = pyqtSignal(bool, int)
     # 数据库读取列表
     sig_sqlTableNameList = pyqtSignal(list)
     # 相机读取数据
@@ -122,6 +127,7 @@ class FloatingYarn(Can_Derive, QObject):
     sig_infoDialog = pyqtSignal(str)
     # 检测结果信号
     sig_detectResult = pyqtSignal(str)
+    sig_sqlTableData = pyqtSignal(str)
 
     class MachineStatus(Enum):
         Close = 0
@@ -150,6 +156,8 @@ class FloatingYarn(Can_Derive, QObject):
         self.__canBaudRate = 1000
         self.__canStatus = False
 
+
+
         self.__recMsgFinishIndex = 0
         self.finishMsgArr = [8, 9, 10, 11, 12, 13, 14, 15]
         self.startMsgArr = [0, 1, 2, 3, 4, 5, 6, 7]
@@ -159,6 +167,8 @@ class FloatingYarn(Can_Derive, QObject):
         self.__waitCondition = QWaitCondition()
         self.__Mutex = QMutex()
 
+        self.__timer = QTimer(self)
+        self.__threads = {}  # 用于管理线程的字典
         # 启动接收线程
         self.__recMsgThread = CanReceiverThread(wait_condition=self.__waitCondition, mutex=self.__Mutex)
         self.__recMsgThread.set_floating_yarn(self)
@@ -176,6 +186,7 @@ class FloatingYarn(Can_Derive, QObject):
         self.recMsgSaveArr = deque(maxlen=max_messages)
 
         self.__recSqlTabNameFlag = False
+        self.__recSqlDataFlag = False
         self.__recImageFlag = False
         self.__recCameraParamsFlag = False
         self._processFlag = False
@@ -212,9 +223,26 @@ class FloatingYarn(Can_Derive, QObject):
                 self.__sendKnitInfoThread = thread
             # 设定超时定时器，以避免接收不到信息时线程不停止
             if timeout != 0:
-                QTimer.singleShot(timeout, lambda: self.stopProcessingThread(thread_type))
+                self.__timer.setSingleShot(True)
+                self.__timer.timeout.connect(lambda: self.threadTimeOutProcess(thread_type))
+                self.__timer.start(timeout)
+                print(f"Timer started with timeout: {timeout}")
         else:
             print(f"{thread_type} thread is running!")
+
+    def threadTimeOutProcess(self, thread_type):
+        print(f"Timeout triggered for thread type: {thread_type}")
+        if self.__recSqlDataFlag:
+            self.__recSqlDataFlag = False
+        elif self.__recSqlTabNameFlag:
+            self.__recSqlTabNameFlag = False
+            self.sig_sqlTableData.emit('')
+        elif self.__recCameraParamsFlag:
+            self.__recCameraParamsFlag = False
+        elif self.__recImageFlag:
+            self.__recImageFlag = False
+        self.sig_errorDialog.emit("ProcessThread Rec Target Array Time Out")
+        self.stopProcessingThread(thread_type)
 
     # 停止处理线程
     def stopProcessingThread(self, thread_type):
@@ -222,6 +250,7 @@ class FloatingYarn(Can_Derive, QObject):
             self.__processorThread.requestInterruption()
             self.__processorThread = None
             print('RecMsgProcess Thread Stop')
+
         elif thread_type == 1 and self.__sendKnitInfoThread is not None:
             self.__sendKnitInfoThread.requestInterruption()
             self.__sendKnitInfoThread = None
@@ -230,6 +259,7 @@ class FloatingYarn(Can_Derive, QObject):
             print(f"{thread_type} thread is not running!")
 
     # 用于检测结果反馈
+    # Y KnitRow
     def detectResultProcess(self, fatalist):
         if fatalist[0] == 0x4B:
             # 接收行数
@@ -265,6 +295,9 @@ class FloatingYarn(Can_Derive, QObject):
                         elif self.__recCameraParamsFlag:
                             self.__recCameraParamsFlag = False
                             self.processDscCameraFlag()
+                        elif self.__recSqlDataFlag:
+                            self.__recSqlDataFlag = False
+                            self.processDesTabelDataFlag()
                         self.stopProcessingThread(0)
                         return True
                 else:
@@ -278,14 +311,31 @@ class FloatingYarn(Can_Derive, QObject):
     # 当检测到结束标识符后处理图片数据
     def processDscImageFlag(self):
         self.dequeToImage()  # 转换数据为图片
-        self.fyCanSendData(self.StdData.arrEND)
+        for i in range(3):
+            self.fyCanSendData(self.StdData.arrEND)
         now = time.time()
         time_difference = now - self.__calTime
         self.__calTime = 0
         minutes, seconds = divmod(time_difference, 60)
         print(f"{minutes}分钟 {seconds}秒")
-        self.sig_canStatus.emit(True, 0)
+        self.sig_buttonStatus.emit(True, 0)
         self.sig_infoDialog.emit('图片接收成功')
+
+    def processDesTabelDataFlag(self):
+        recMsg = ''
+        while True:
+            if not self.recProcessDataArr:
+                print("没有找到起始标识符数组")
+                return False
+            data_list = self.recProcessDataArr.popleft()
+            # 调用 detectSpecificCharacters 并检查是否找到 target_list
+            if self.detectSpecificCharacters(data_list, target_list=[0, 1, 2, 3, 4, 5, 6, 7]):
+                print("找到起始标识符数组")
+                break  # 如果找到 target_list，退出循环
+        self.recProcessDataArr.pop()
+        for data in self.recProcessDataArr:
+            recMsg.join(decimal2String(data))
+        self.sig_sqlTableData.emit(recMsg)
 
     # 当检测到结束标识符后处理相机信息数据
     def processDscCameraFlag(self):
@@ -310,7 +360,6 @@ class FloatingYarn(Can_Derive, QObject):
     def processDscSQLFlag(self):
         if not self.recProcessDataArr:
             return  # 如果列表为空，则直接返回
-        # 获取第一个元素的长度（假设它是长度数据）
         len_array = self.recProcessDataArr[0]
         print(recList2Str(len_array, False))
         sqlTableNameArr = []
@@ -353,13 +402,14 @@ class FloatingYarn(Can_Derive, QObject):
         self.fyCanSendData(self.StdData.arrEND)
         self.__recImageFlag = False
         self.stopProcessingThread(0)
+        self.sig_buttonStatus.emit(self.__canStatus, 0)
 
     # 接收数据处理
     def receiving_msg_processing(self, vci_can_obj):
         data_list = list(vci_can_obj.Data)
         with QMutexLocker(self.__Mutex):  # 确保线程安全
             # 检查是否需要处理的标志位
-            self._processFlag = self.__recImageFlag or self.__recSqlTabNameFlag or self.__recCameraParamsFlag
+            self._processFlag = self.__recSqlDataFlag or self.__recImageFlag or self.__recSqlTabNameFlag or self.__recCameraParamsFlag
             if self._processFlag:
                 self.recProcessDataArr.append(data_list)
                 if self.__recImageFlag:
@@ -374,7 +424,7 @@ class FloatingYarn(Can_Derive, QObject):
                 if self.__recImageFlag:
                     self.startThreadWithTimer(thread_type=0, timeout=20000)  # 开始处理线程
                 else:
-                    self.startThreadWithTimer(thread_type=0, timeout=10000)  # 开始处理线程
+                    self.startThreadWithTimer(thread_type=0, timeout=300)  # 开始处理线程
 
     # 计算进度条
     def fyCalPicProgressBar(self):
@@ -389,19 +439,19 @@ class FloatingYarn(Can_Derive, QObject):
         self.can_channel_open(baud=canBaud)
         if self.check_CAN_STATUS():
             self.__canStatus = True
-            self.sig_canStatus.emit(self.__canStatus, 0)
+            self.sig_buttonStatus.emit(self.__canStatus, 0)
             self.fyCheckSlaveStatus()
             return True
         else:
             self.__canStatus = False
-            self.sig_canStatus.emit(self.__canStatus, 0)
+            self.sig_buttonStatus.emit(self.__canStatus, 0)
             return False
 
     # CAN关闭
     def fyCanClose(self):
         self.can_close()
         self.__canStatus = False
-        self.sig_canStatus.emit(self.__canStatus, 0)
+        self.sig_buttonStatus.emit(self.__canStatus, 0)
 
     # 下位机运行状态检查
     def fyCheckSlaveStatus(self):
@@ -487,8 +537,9 @@ class FloatingYarn(Can_Derive, QObject):
         elif self.__selfStatus == self.MachineStatus.SQL_EDIT:
             # 获取文件名
             if mission == 1:
-                self.__recSqlTabNameFlag = True
                 self.recProcessDataArr.clear()
+                time.sleep(0.05)
+                self.__recSqlTabNameFlag = True
                 self.fyCanSendData(self.StdData.arrTNAM)
                 return True
             elif mission == 2:
@@ -509,6 +560,14 @@ class FloatingYarn(Can_Derive, QObject):
             elif mission == 4:
                 self.fyCanSendData(self.StdData.arrTDRA)
                 return True
+            elif mission == 5:
+                self.fyCanSendData(self.StdData.arrQUERY)
+                time.sleep(0.05)
+                if byteName:
+                    self.__recSqlDataFlag = True
+                    self.recProcessDataArr.clear()
+                    byteArr = strValue2CtypeArray(byteName)
+                    self.fyCanSendData(byteArr)
             else:
                 return False
         else:
@@ -636,8 +695,9 @@ class FloatingYarn(Can_Derive, QObject):
     def fyStopDetect(self):
         self.stopProcessingThread(1)
         time.sleep(0.05)
-        self.fyCanSendData(send_data=self.StdData.arrEND)
-        time.sleep(0.05)
+        for i in range(3):
+            self.fyCanSendData(send_data=self.StdData.arrEND)
+            time.sleep(0.05)
 
     # 向下位机发送接收图片请求
     def fyReceiveImage(self):
@@ -647,21 +707,27 @@ class FloatingYarn(Can_Derive, QObject):
                 rec_msg, rec_flag = self.fySendDataAndWait(message=self.StdData.arrRE2PC)
                 if compare_arr_ctypes_(input_arr=rec_msg, target_arr=self.StdData.arrPCO):
                     print('PIC:下位机处于PCO')
-                    self.fyCanSendData(self.StdData.arrACK)
-                    time.sleep(0.05)
+                    time.sleep(0.10)
                     if self.fyCheckSlaveStatus():
                         if self.__selfStatus == self.MachineStatus.PIC:
                             print('下位机状态已经是PIC')
                             self.recProcessDataArr.clear()
                             self.__recMsgFinishIndex = 0
-                            len_msg, rec_flag = self.fySendDataAndWait(message=self.StdData.arrSTA)
-                            self.__recPicAllSize = calNumberArray(len_msg)
-                            self.__recPicCurrentSize = 0
-                            self.sig_progressValue.emit(0)
-                            self.sig_canStatus.emit(True, 6)
-                            self.__calTime = time.time()
-                            self.__recImageFlag = True
-                            return True
+                            time.sleep(0.10)
+                            len_msg, rec_flag = self.fySendDataAndWait(message=self.StdData.arrSTA, timeout_ms=5000)
+                            image_len = calNumberArray(len_msg)
+                            if image_len != -1:
+                                self.__recPicAllSize = image_len
+                                self.__recPicCurrentSize = 0
+                                self.sig_progressValue.emit(0)
+                                self.sig_buttonStatus.emit(True, 6)
+                                print("Start RecImage")
+                                self.__calTime = time.time()
+                                self.__recImageFlag = True
+                                return True
+                            else:
+                                self.sig_errorDialog.emit("Rec Image Len Error")
+                                return False
                         else:
                             return False
                     else:
