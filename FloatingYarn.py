@@ -53,7 +53,7 @@ def calNumberArray(input_list):
         return -1
     outputData = 0
     if input_list[0] != 0x76:
-        for i in range(1,8):
+        for i in range(1, 8):
             data = input_list[i] - 48
             multiData = 10 ** (7 - i)
             outputData = outputData + data * multiData
@@ -156,8 +156,6 @@ class FloatingYarn(Can_Derive, QObject):
         self.__canBaudRate = 1000
         self.__canStatus = False
 
-
-
         self.__recMsgFinishIndex = 0
         self.finishMsgArr = [8, 9, 10, 11, 12, 13, 14, 15]
         self.startMsgArr = [0, 1, 2, 3, 4, 5, 6, 7]
@@ -167,12 +165,11 @@ class FloatingYarn(Can_Derive, QObject):
         self.__waitCondition = QWaitCondition()
         self.__Mutex = QMutex()
 
-        self.__timer = QTimer(self)
+        self.__timer = None
         self.__threads = {}  # 用于管理线程的字典
         # 启动接收线程
-        self.__recMsgThread = CanReceiverThread(wait_condition=self.__waitCondition, mutex=self.__Mutex)
-        self.__recMsgThread.set_floating_yarn(self)
-        self.__recMsgThread.start()
+        self.__recMsgThread = self.__create_thread(CanReceiverThread)
+        self.__start_thread(self.__recMsgThread)
 
         # 用于数据接收处理线程
         self.__processorThread = None
@@ -201,62 +198,74 @@ class FloatingYarn(Can_Derive, QObject):
         print("Timeout occurred. No response received.")
         self.sig_errorDialog.emit('Timeout occurred. No response received.')  # None 为父窗口
 
-    # 开始线程并带有定时器（当线程运行超过设定时间则停止线程）
-    def startThreadWithTimer(self, thread_type, timeout=0):
-        if thread_type == 0:
-            thread = self.__processorThread
-            thread_class = CanProcessorThread
-        elif thread_type == 1:
-            thread = self.__sendKnitInfoThread
-            thread_class = KnitSendThread
+    def __create_thread(self, thread_class):
+        """创建线程对象"""
+        thread = thread_class(wait_condition=self.__waitCondition, mutex=self.__Mutex)
+        thread.set_floating_yarn(self)
+        return thread
+
+    def __start_thread(self, thread, timeout=0):
+        if thread.isRunning():
+            print(f"Thread {thread} is already running!")
+            return
+        thread.start()
+        thread_id = id(thread)
+        self.__threads[thread_id] = thread
+
+        if timeout:
+            self.__setup_timer(thread_id, timeout)
         else:
+            print("No timeout set, timer not started.")
+
+    def __setup_timer(self, thread_id, timeout):
+        if self.__timer:
+            self.__timer.stop()
+            self.__timer.deleteLater()
+
+        self.__timer = QTimer(self)
+        self.__timer.setSingleShot(True)
+        self.__timer.timeout.connect(lambda: self.__handle_timeout(thread_id))
+        self.__timer.start(timeout)
+        print(f"thread id: {thread_id}, Timer started with timeout: {timeout}")
+
+    def __stop_thread(self, thread_id):
+        """停止线程"""
+        thread = self.__threads.pop(thread_id, None)
+        if thread and thread.isRunning():
+            thread.requestInterruption()
+            thread.wait()
+            print(f"Thread {thread} stopped.")
+        else:
+            print(f"Thread {thread_id} is not running or already stopped.")
+
+    def __handle_timeout(self, thread_id):
+        print(f"Timeout triggered for thread id: {thread_id}")
+        self.__stop_thread(thread_id)
+        self.sig_errorDialog.emit("ProcessThread Rec Target Array Time Out")
+
+    def startProcessingThread(self, thread_type, timeout=0):
+        if thread_type not in [0, 1]:
             print("Invalid thread type!")
             return
-        if thread is None:
-            thread = thread_class(wait_condition=self.__waitCondition, mutex=self.__Mutex)
-            thread.set_floating_yarn(self)
-            thread.start()
 
-            if thread_type == 0:
-                self.__processorThread = thread
-            elif thread_type == 1:
-                self.__sendKnitInfoThread = thread
-            # 设定超时定时器，以避免接收不到信息时线程不停止
-            if timeout != 0:
-                self.__timer.setSingleShot(True)
-                self.__timer.timeout.connect(lambda: self.threadTimeOutProcess(thread_type))
-                self.__timer.start(timeout)
-                print(f"Timer started with timeout: {timeout}")
-        else:
-            print(f"{thread_type} thread is running!")
+        thread_class = CanProcessorThread if thread_type == 0 else KnitSendThread
+        thread = self.__create_thread(thread_class)
+        self.__start_thread(thread, timeout)
 
-    def threadTimeOutProcess(self, thread_type):
-        print(f"Timeout triggered for thread type: {thread_type}")
-        if self.__recSqlDataFlag:
-            self.__recSqlDataFlag = False
-        elif self.__recSqlTabNameFlag:
-            self.__recSqlTabNameFlag = False
-            self.sig_sqlTableData.emit('')
-        elif self.__recCameraParamsFlag:
-            self.__recCameraParamsFlag = False
-        elif self.__recImageFlag:
-            self.__recImageFlag = False
-        self.sig_errorDialog.emit("ProcessThread Rec Target Array Time Out")
-        self.stopProcessingThread(thread_type)
+        if thread_type == 0:
+            self.__processorThread = thread
+        elif thread_type == 1:
+            self.__sendKnitInfoThread = thread
 
-    # 停止处理线程
     def stopProcessingThread(self, thread_type):
-        if thread_type == 0 and self.__processorThread is not None:
-            self.__processorThread.requestInterruption()
+        if thread_type == 0 and hasattr(self, '__processorThread'):
+            self.__stop_thread(id(self.__processorThread))
             self.__processorThread = None
-            print('RecMsgProcess Thread Stop')
-
-        elif thread_type == 1 and self.__sendKnitInfoThread is not None:
-            self.__sendKnitInfoThread.requestInterruption()
+        elif thread_type == 1 and hasattr(self, '__sendKnitInfoThread'):
+            self.__stop_thread(id(self.__sendKnitInfoThread))
             self.__sendKnitInfoThread = None
-            print('Knit Thread Stop')
         else:
-            print(f"{thread_type} thread is not running!")
+            print(f"{thread_type} thread is not running or already stopped!")
 
     # 用于检测结果反馈
     # Y KnitRow
@@ -399,6 +408,7 @@ class FloatingYarn(Can_Derive, QObject):
         self.sig_imageProcess.emit()
 
     def fyStopImageRec(self):
+        # 停止图像接收，发送结束数据
         self.fyCanSendData(self.StdData.arrEND)
         self.__recImageFlag = False
         self.stopProcessingThread(0)
@@ -406,25 +416,29 @@ class FloatingYarn(Can_Derive, QObject):
 
     # 接收数据处理
     def receiving_msg_processing(self, vci_can_obj):
+        # 将接收到的数据转换为列表
         data_list = list(vci_can_obj.Data)
-        with QMutexLocker(self.__Mutex):  # 确保线程安全
-            # 检查是否需要处理的标志位
-            self._processFlag = self.__recSqlDataFlag or self.__recImageFlag or self.__recSqlTabNameFlag or self.__recCameraParamsFlag
+        # 使用 QMutexLocker 确保线程安全
+        with QMutexLocker(self.__Mutex):
+            self._processFlag = self.__recSqlDataFlag or self.__recImageFlag or \
+                                self.__recSqlTabNameFlag or self.__recCameraParamsFlag
             if self._processFlag:
+                # 将数据添加到处理数组
                 self.recProcessDataArr.append(data_list)
                 if self.__recImageFlag:
                     self.__recPicCurrentSize += 8
                     self.fyCalPicProgressBar()
             else:
                 self.recMsgSaveArr.append(data_list)
-                self.__waitCondition.wakeAll()  # 唤醒等待的线程
-                self.sig_messageReceived.emit(recList2Str(data_list))  # 发射信号，确保在主线程中
-            # 检查处理线程是否需要启动
+                self.__waitCondition.wakeAll()  # 唤醒可能等待的线程
+                self.sig_messageReceived.emit(recList2Str(data_list))  # 发射信号到主线程
+            # 检查是否需要启动处理线程
             if self._processFlag and not self.__processorThread:
+                # 根据标志位选择超时时间并启动处理线程
                 if self.__recImageFlag:
-                    self.startThreadWithTimer(thread_type=0, timeout=20000)  # 开始处理线程
+                    self.startProcessingThread(thread_type=0, timeout=20000)
                 else:
-                    self.startThreadWithTimer(thread_type=0, timeout=300)  # 开始处理线程
+                    self.startProcessingThread(thread_type=0, timeout=3000)
 
     # 计算进度条
     def fyCalPicProgressBar(self):
@@ -495,23 +509,26 @@ class FloatingYarn(Can_Derive, QObject):
 
     # 发送数据并等待接收
     def fySendDataAndWait(self, message, timeout_ms=5000):
-        """发送数据并等待接收，带超时机制"""
+        time.sleep(0.05)
         self.fyCanSendData(message)
-        # 设置超时机制
         timer = QTimer()
         timer.setSingleShot(True)
-        timer.timeout.connect(self.onTimeout)
+        timeout_occurred = [False]  # 使用列表来作为可变的标志
+
+        def on_timeout():
+            timeout_occurred[0] = True
+            self.__waitCondition.wakeAll()  # 唤醒等待的线程
+        timer.timeout.connect(on_timeout)
         timer.start(timeout_ms)
 
         with QMutexLocker(self.__Mutex):
-            # 使用 QWaitCondition 和 QMutex 进行同步
+            # 使用 QWaitCondition 和 QMutex 进行同步等待，直到超时或接收到数据
             data_received = self.__waitCondition.wait(self.__Mutex, timeout_ms)
-
-        # 停止定时器
         timer.stop()
+        timer.deleteLater()  # 使用 deleteLater() 确保定时器正确释放
 
-        if not data_received:
-            # 处理超时情况
+        if timeout_occurred[0] or not data_received:
+            # 如果超时或未接收到数据，处理超时情况
             self.onTimeout()
             return None, False  # 返回 None 表示未接收到数据，False 表示操作失败
 
@@ -668,9 +685,9 @@ class FloatingYarn(Can_Derive, QObject):
                             self.detectFlag = True
                             time.sleep(0.05)
                             # 发送数据
-                            self.startThreadWithTimer(thread_type=1, timeout=0)
+                            self.startProcessingThread(thread_type=1, timeout=0)
                             # 接收数据
-                            self.startThreadWithTimer(thread_type=0, timeout=0)
+                            self.startProcessingThread(thread_type=0, timeout=0)
                             return True
                         else:
                             return False
@@ -801,12 +818,24 @@ class CanReceiverThread(FYCanThread):
     def run(self):
         while not self.isInterruptionRequested():
             if self.floating_yarn:
-                self.floating_yarn.can_receive_msg_2()
-                with QMutexLocker(self.mutex):
-                    if self.floating_yarn.recMsgSaveArr:
-                        self.wait_condition.wakeAll()  # 唤醒处理线程
+                try:
+                    # 尝试接收 CAN 消息
+                    self.floating_yarn.can_receive_msg_2()
+
+                    with QMutexLocker(self.mutex):
+                        # 如果 recMsgSaveArr 有数据，唤醒处理线程
+                        if self.floating_yarn.recMsgSaveArr:
+                            self.wait_condition.wakeAll()
+                except Exception as e:
+                    # 捕获异常，输出错误日志
+                    print(f"Error while receiving CAN message: {e}")
             else:
-                QThread.msleep(100)  # 延时，以避免占用过多 CPU 资源
+                QThread.msleep(100)  # 延时100ms，以避免占用过多 CPU 资源
+
+    def requestInterruption(self):
+        super().requestInterruption()
+        # 立即唤醒线程以便其能够及时响应中断请求
+        self.wait_condition.wakeAll()
 
 
 # 接收数据处理线程
@@ -814,13 +843,14 @@ class CanProcessorThread(FYCanThread):
     def run(self):
         if self.floating_yarn is None:
             return  # 提前退出，如果floating_yarn为空
+
         while not self.isInterruptionRequested():
             with QMutexLocker(self.mutex):
-                while not (
-                        self.floating_yarn.recProcessDataArr) and not self.isInterruptionRequested():
-                    self.wait_condition.wait(self.mutex)
-                if self.isInterruptionRequested():
-                    break
+                # 使用条件变量的wait，带超时功能（如 1 秒）
+                if not self.wait_condition.wait(self.mutex, 1000):  # 1秒超时
+                    continue  # 超时后继续检查中断请求
+
+                # 检查是否有数据处理
                 if self.floating_yarn.recProcessDataArr:
                     data_list = self.floating_yarn.recProcessDataArr[-1]
                     if data_list:
@@ -831,6 +861,16 @@ class CanProcessorThread(FYCanThread):
                                 data_list=data_list,
                                 target_list=self.floating_yarn.finishMsgArr
                             )
+
+            # 检查是否需要中断请求
+            if self.isInterruptionRequested():
+                break
+
+    def requestInterruption(self):
+        super().requestInterruption()
+        # 唤醒所有等待的线程，以便它们可以及时检查中断请求
+        with QMutexLocker(self.mutex):
+            self.wait_condition.wakeAll()
 
 
 # 编织信息发送
