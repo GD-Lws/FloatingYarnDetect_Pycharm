@@ -47,9 +47,9 @@ class MainWindow:
         # 初始化 UI 管理器并设置连接
         self.ui_manager = candriver_layout.Ui_MainWindow()
         self.ui_manager.setupUi(self.MainWindow)
-        self.printer = ListWidgetPrinter(self.ui_manager.listWidget_log)
+        # self.printer = ListWidgetPrinter(self.ui_manager.listWidget_log)
         self.sqlDialog = SQLDialog(floating_yarn=self.floating_yarn)
-        sys.stdout = self.printer  # 重定向 print 到 ListWidgetPrinter
+        # sys.stdout = self.printer  # 重定向 print 到 ListWidgetPrinter
         self.uiConnectInit()
         self.setTheUIDefaultValue()
 

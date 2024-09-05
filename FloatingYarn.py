@@ -4,11 +4,11 @@ from collections import deque
 from datetime import datetime
 from enum import Enum
 
-from PyQt5.QtCore import pyqtSignal, QObject, QThread, QMutex, QTimer, QWaitCondition, QMutexLocker
+from PyQt5.QtCore import pyqtSignal, QObject, QThread, QMutex, QTimer, QWaitCondition, QMutexLocker, QThreadPool
 
 from CAN_TOOL.CANMessageData import CANMessageData
 from CAN_TOOL.Can_Derive import Can_Derive
-from FYCanThread import FYCanThread
+from FYCanThread import FYCanRunnable
 
 
 def numValue2CtypeArray(value_str, length=5):
@@ -144,6 +144,10 @@ class FloatingYarn(Can_Derive, QObject):
         Compare = 1
         Record = 2
 
+    CAN_RECEIVER_THREAD = 1
+    CAN_PROCESSOR_THREAD = 2
+    KNIT_INFO_SEND_THREAD = 3
+
     def __init__(self, win_linux=1, Can_id=0x141, max_messages=10000,
                  temp_photo_storage_path='rec_txt/output_image.jpg'):
         QObject.__init__(self)
@@ -162,21 +166,15 @@ class FloatingYarn(Can_Derive, QObject):
         self.__imageSavePath = temp_photo_storage_path
 
         # 同步锁
-        self.__waitCondition = QWaitCondition()
-        self.__Mutex = QMutex()
+        self.waitCondition = QWaitCondition()
+        self.mutex = QMutex()
 
         self.__timer = None
         self.__threads = {}  # 用于管理线程的字典
-        # 启动接收线程
-        self.__recMsgThread = self.__create_thread(CanReceiverThread)
-        self.__start_thread(self.__recMsgThread)
 
         # 用于数据接收处理线程
-        self.__processorThread = None
-        # 用于持续发送当前编织行数
         self.knitRow = 0
         self.knitVelocity = 0
-        self.__sendKnitInfoThread = None
 
         self.__recPicAllSize = 0
         self.__recPicCurrentSize = 0
@@ -187,85 +185,78 @@ class FloatingYarn(Can_Derive, QObject):
         self.__recImageFlag = False
         self.__recCameraParamsFlag = False
         self._processFlag = False
+        self.detectFlag = False
 
         self.recProcessDataArr = deque()
         self.__calTime = 0
 
-        self.detectFlag = False
+        self.threadPool = QThreadPool.globalInstance()
+        self.runnableCanReceiver = None
+        self.runnableCanProcessor = None
+        self.runnableKnitInfoSend = None
+        self.runnableFlagArray = [0, 0, 0, 0]
+        self.startThreadByIndex(self.CAN_RECEIVER_THREAD)
+
+    def threadTimeOutCallBack(self):
+        self.__recImageFlag = False
+        self.__recCameraParamsFlag = False
+        self.__recSqlDataFlag = False
+        self.__recSqlTabNameFlag = False
+        self.setRunnableFlag(self.CAN_PROCESSOR_THREAD, 0)
+        self.sig_buttonStatus.emit(self.__canStatus, 0)
+        self.sig_errorDialog.emit("Thread Process TimeOut")
+
+    def setRunnableFlag(self, index, flag):
+        self.runnableFlagArray[index] = flag
 
     def onTimeout(self):
         """超时处理，弹出错误对话框"""
         print("Timeout occurred. No response received.")
         self.sig_errorDialog.emit('Timeout occurred. No response received.')  # None 为父窗口
 
-    def __create_thread(self, thread_class):
-        """创建线程对象"""
-        thread = thread_class(wait_condition=self.__waitCondition, mutex=self.__Mutex)
-        thread.set_floating_yarn(self)
-        return thread
-
-    def __start_thread(self, thread, timeout=0):
-        if thread.isRunning():
-            print(f"Thread {thread} is already running!")
-            return
-        thread.start()
-        thread_id = id(thread)
-        self.__threads[thread_id] = thread
-
-        if timeout:
-            self.__setup_timer(thread_id, timeout)
+    def initializeThreadByIndex(self, threadIndex):
+        # 判断标志位，如果线程未初始化则进行初始化
+        if self.runnableFlagArray[threadIndex] == 0:
+            if threadIndex == self.CAN_RECEIVER_THREAD:
+                self.runnableCanReceiver = CanReceiverRunnable(self.waitCondition, self.mutex)
+                self.runnableCanReceiver.setFloatingYarn(self)
+                print("runnableCanReceiver initialized.")
+            elif threadIndex == self.CAN_PROCESSOR_THREAD:
+                self.runnableCanProcessor = CanProcessorRunnable(self.waitCondition, self.mutex,
+                                                                 self.threadTimeOutCallBack)
+                self.runnableCanProcessor.setFloatingYarn(self)
+                print("runnableCanProcessor initialized.")
+            elif threadIndex == self.KNIT_INFO_SEND_THREAD:
+                self.runnableKnitInfoSend = KnitSendRunnable(self.waitCondition, self.mutex)
+                self.runnableKnitInfoSend.setFloatingYarn(self)
+                print("runnableKnitInfoSend initialized.")
+            self.runnableFlagArray[threadIndex] = 1
         else:
-            print("No timeout set, timer not started.")
+            print(f"Thread at index {threadIndex} is already initialized.")
 
-    def __setup_timer(self, thread_id, timeout):
-        if self.__timer:
-            self.__timer.stop()
-            self.__timer.deleteLater()
+    def startThreadByIndex(self, threadIndex):
+        self.initializeThreadByIndex(threadIndex)
+        if threadIndex == self.CAN_RECEIVER_THREAD:
+            self.threadPool.start(self.runnableCanReceiver)
+            print("runnableCanReceiver started.")
+        elif threadIndex == self.CAN_PROCESSOR_THREAD:
+            self.threadPool.start(self.runnableCanProcessor)
+            print("runnableCanProcessor started.")
+        elif threadIndex == self.KNIT_INFO_SEND_THREAD:
+            self.threadPool.start(self.runnableKnitInfoSend)
+            print("runnableKnitInfoSend started.")
 
-        self.__timer = QTimer(self)
-        self.__timer.setSingleShot(True)
-        self.__timer.timeout.connect(lambda: self.__handle_timeout(thread_id))
-        self.__timer.start(timeout)
-        print(f"thread id: {thread_id}, Timer started with timeout: {timeout}")
-
-    def __stop_thread(self, thread_id):
-        """停止线程"""
-        thread = self.__threads.pop(thread_id, None)
-        if thread and thread.isRunning():
-            thread.requestInterruption()
-            thread.wait()
-            print(f"Thread {thread} stopped.")
-        else:
-            print(f"Thread {thread_id} is not running or already stopped.")
-
-    def __handle_timeout(self, thread_id):
-        print(f"Timeout triggered for thread id: {thread_id}")
-        self.__stop_thread(thread_id)
-        self.sig_errorDialog.emit("ProcessThread Rec Target Array Time Out")
-
-    def startProcessingThread(self, thread_type, timeout=0):
-        if thread_type not in [0, 1]:
-            print("Invalid thread type!")
-            return
-
-        thread_class = CanProcessorThread if thread_type == 0 else KnitSendThread
-        thread = self.__create_thread(thread_class)
-        self.__start_thread(thread, timeout)
-
-        if thread_type == 0:
-            self.__processorThread = thread
-        elif thread_type == 1:
-            self.__sendKnitInfoThread = thread
-
-    def stopProcessingThread(self, thread_type):
-        if thread_type == 0 and hasattr(self, '__processorThread'):
-            self.__stop_thread(id(self.__processorThread))
-            self.__processorThread = None
-        elif thread_type == 1 and hasattr(self, '__sendKnitInfoThread'):
-            self.__stop_thread(id(self.__sendKnitInfoThread))
-            self.__sendKnitInfoThread = None
-        else:
-            print(f"{thread_type} thread is not running or already stopped!")
+    def stopThreadByIndex(self, threadIndex):
+        if threadIndex == self.CAN_RECEIVER_THREAD and self.runnableCanReceiver:
+            self.runnableCanReceiver.requestInterruption()
+            print("runnableCanReceiver stopped.")
+        elif threadIndex == self.CAN_PROCESSOR_THREAD and self.runnableCanProcessor:
+            self.runnableCanProcessor.requestInterruption()
+            print("runnableCanProcessor stopped.")
+        elif threadIndex == self.KNIT_INFO_SEND_THREAD and self.runnableKnitInfoSend:
+            self.runnableKnitInfoSend.requestInterruption()
+            print("runnableKnitInfoSend stopped.")
+        self.runnableFlagArray[threadIndex] = 0
 
     # 用于检测结果反馈
     # Y KnitRow
@@ -307,7 +298,7 @@ class FloatingYarn(Can_Derive, QObject):
                         elif self.__recSqlDataFlag:
                             self.__recSqlDataFlag = False
                             self.processDesTabelDataFlag()
-                        self.stopProcessingThread(0)
+                        self.stopThreadByIndex(self.CAN_PROCESSOR_THREAD)
                         return True
                 else:
                     # 匹配失败，重置计数
@@ -411,7 +402,7 @@ class FloatingYarn(Can_Derive, QObject):
         # 停止图像接收，发送结束数据
         self.fyCanSendData(self.StdData.arrEND)
         self.__recImageFlag = False
-        self.stopProcessingThread(0)
+        self.stopThreadByIndex(self.CAN_PROCESSOR_THREAD)
         self.sig_buttonStatus.emit(self.__canStatus, 0)
 
     # 接收数据处理
@@ -419,7 +410,7 @@ class FloatingYarn(Can_Derive, QObject):
         # 将接收到的数据转换为列表
         data_list = list(vci_can_obj.Data)
         # 使用 QMutexLocker 确保线程安全
-        with QMutexLocker(self.__Mutex):
+        with QMutexLocker(self.mutex):
             self._processFlag = self.__recSqlDataFlag or self.__recImageFlag or \
                                 self.__recSqlTabNameFlag or self.__recCameraParamsFlag
             if self._processFlag:
@@ -430,15 +421,20 @@ class FloatingYarn(Can_Derive, QObject):
                     self.fyCalPicProgressBar()
             else:
                 self.recMsgSaveArr.append(data_list)
-                self.__waitCondition.wakeAll()  # 唤醒可能等待的线程
+                self.waitCondition.wakeAll()  # 唤醒可能等待的线程
                 self.sig_messageReceived.emit(recList2Str(data_list))  # 发射信号到主线程
             # 检查是否需要启动处理线程
-            if self._processFlag and not self.__processorThread:
-                # 根据标志位选择超时时间并启动处理线程
-                if self.__recImageFlag:
-                    self.startProcessingThread(thread_type=0, timeout=20000)
-                else:
-                    self.startProcessingThread(thread_type=0, timeout=3000)
+            if self._processFlag:
+                if self.runnableFlagArray[self.CAN_PROCESSOR_THREAD] == 0:
+                    self.initializeThreadByIndex(self.CAN_PROCESSOR_THREAD)
+                    # 根据标志位选择超时时间并启动处理线程
+                    if self.__recImageFlag:
+                        self.runnableCanProcessor.set_timeout_duration(30)
+                    else:
+                        # 单位是秒
+                        self.runnableCanProcessor.set_timeout_duration(5)
+
+                    self.startThreadByIndex(threadIndex=self.CAN_PROCESSOR_THREAD)
 
     # 计算进度条
     def fyCalPicProgressBar(self):
@@ -517,13 +513,14 @@ class FloatingYarn(Can_Derive, QObject):
 
         def on_timeout():
             timeout_occurred[0] = True
-            self.__waitCondition.wakeAll()  # 唤醒等待的线程
+            self.waitCondition.wakeAll()  # 唤醒等待的线程
+
         timer.timeout.connect(on_timeout)
         timer.start(timeout_ms)
 
-        with QMutexLocker(self.__Mutex):
+        with QMutexLocker(self.mutex):
             # 使用 QWaitCondition 和 QMutex 进行同步等待，直到超时或接收到数据
-            data_received = self.__waitCondition.wait(self.__Mutex, timeout_ms)
+            data_received = self.waitCondition.wait(self.mutex, timeout_ms)
         timer.stop()
         timer.deleteLater()  # 使用 deleteLater() 确保定时器正确释放
 
@@ -685,9 +682,9 @@ class FloatingYarn(Can_Derive, QObject):
                             self.detectFlag = True
                             time.sleep(0.05)
                             # 发送数据
-                            self.startProcessingThread(thread_type=1, timeout=0)
+                            self.startThreadByIndex(self.KNIT_INFO_SEND_THREAD)
                             # 接收数据
-                            self.startProcessingThread(thread_type=0, timeout=0)
+                            self.startThreadByIndex(self.CAN_PROCESSOR_THREAD)
                             return True
                         else:
                             return False
@@ -710,7 +707,7 @@ class FloatingYarn(Can_Derive, QObject):
 
     # 检测停止
     def fyStopDetect(self):
-        self.stopProcessingThread(1)
+        self.stopThreadByIndex(self.CAN_PROCESSOR_THREAD)
         time.sleep(0.05)
         for i in range(3):
             self.fyCanSendData(send_data=self.StdData.arrEND)
@@ -814,43 +811,48 @@ class FloatingYarn(Can_Derive, QObject):
 
 
 # 接收数据线程
-class CanReceiverThread(FYCanThread):
+class CanReceiverRunnable(FYCanRunnable):
     def run(self):
-        while not self.isInterruptionRequested():
+        while not self.should_stop:
             if self.floating_yarn:
                 try:
                     # 尝试接收 CAN 消息
                     self.floating_yarn.can_receive_msg_2()
-
                     with QMutexLocker(self.mutex):
                         # 如果 recMsgSaveArr 有数据，唤醒处理线程
                         if self.floating_yarn.recMsgSaveArr:
                             self.wait_condition.wakeAll()
                 except Exception as e:
-                    # 捕获异常，输出错误日志
                     print(f"Error while receiving CAN message: {e}")
             else:
-                QThread.msleep(100)  # 延时100ms，以避免占用过多 CPU 资源
-
-    def requestInterruption(self):
-        super().requestInterruption()
-        # 立即唤醒线程以便其能够及时响应中断请求
-        self.wait_condition.wakeAll()
+                time.sleep(0.1)  # 延时100ms，以避免占用过多 CPU 资源
 
 
-# 接收数据处理线程
-class CanProcessorThread(FYCanThread):
+class CanProcessorRunnable(FYCanRunnable):
+    def __init__(self, wait_condition, mutex, timeout_callback, parent=None):
+        super().__init__(wait_condition, mutex, parent)
+        self.timeout_callback = timeout_callback
+        self.timeout_duration = 5  # 默认超时时间 (秒)
+        self.start_time = None
+
+    def set_timeout_duration(self, duration):
+        self.should_stop = False
+        self.timeout_duration = duration
+
     def run(self):
-        if self.floating_yarn is None:
-            return  # 提前退出，如果floating_yarn为空
+        self.start_time = time.time()
+        while not self.should_stop:
+            current_time = time.time()
+            time_cal = current_time - self.start_time
+            if time_cal > self.timeout_duration:
+                self.requestInterruption()  # 超时后请求中断
+                self.timeout_callback()  # 调用超时回调
+                break
 
-        while not self.isInterruptionRequested():
             with QMutexLocker(self.mutex):
-                # 使用条件变量的wait，带超时功能（如 1 秒）
-                if not self.wait_condition.wait(self.mutex, 1000):  # 1秒超时
-                    continue  # 超时后继续检查中断请求
+                while not self.floating_yarn.recProcessDataArr:
+                    self.wait_condition.wait(self.mutex)
 
-                # 检查是否有数据处理
                 if self.floating_yarn.recProcessDataArr:
                     data_list = self.floating_yarn.recProcessDataArr[-1]
                     if data_list:
@@ -862,31 +864,24 @@ class CanProcessorThread(FYCanThread):
                                 target_list=self.floating_yarn.finishMsgArr
                             )
 
-            # 检查是否需要中断请求
-            if self.isInterruptionRequested():
-                break
 
-    def requestInterruption(self):
-        super().requestInterruption()
-        # 唤醒所有等待的线程，以便它们可以及时检查中断请求
-        with QMutexLocker(self.mutex):
-            self.wait_condition.wakeAll()
-
-
-# 编织信息发送
-class KnitSendThread(FYCanThread):
+class KnitSendRunnable(FYCanRunnable):
     def run(self):
-        while not self.isInterruptionRequested():
+        while not self.should_stop:
             if self.floating_yarn is not None:
-                send_data_array = self.floating_yarn.StdData.arrYARN
-                sendRow = self.floating_yarn.knitRow
-                sendVelocity = self.floating_yarn.knitVelocity
-                rowArray = numValue2CtypeArray(value_str=str(sendRow), length=4)
-                velArray = numValue2CtypeArray(value_str=str(sendVelocity), length=3)
-                # Y ROW(4) VEL(3)
-                for i in range(1, 5):
-                    send_data_array[i] = rowArray[i - 1]
-                for i in range(5, 8):
-                    send_data_array[i] = velArray[i - 5]
+                with QMutexLocker(self.mutex):
+                    send_data_array = self.floating_yarn.StdData.arrYARN
+                    sendRow = self.floating_yarn.knitRow
+                    sendVelocity = self.floating_yarn.knitVelocity
+                    rowArray = numValue2CtypeArray(value_str=str(sendRow), length=4)
+                    velArray = numValue2CtypeArray(value_str=str(sendVelocity), length=3)
+
+                    # Y ROW(4) VEL(3)
+                    for i in range(1, 5):
+                        send_data_array[i] = rowArray[i - 1]
+                    for i in range(5, 8):
+                        send_data_array[i] = velArray[i - 5]
+
+                # 发送数据
                 self.floating_yarn.fyCanSendData(send_data_array)
                 time.sleep(0.05)

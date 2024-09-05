@@ -1,18 +1,19 @@
-from PyQt5.QtCore import QThread, QMutex, QWaitCondition, QMutexLocker
+from PyQt5.QtCore import QThread, QMutex, QWaitCondition, QMutexLocker, QRunnable
 
 
-class FYCanThread(QThread):
-    """通用的 CAN 线程基类"""
-
-    def __init__(self, wait_condition, mutex):
+class FYCanRunnable(QRunnable):
+    def __init__(self, wait_condition, mutex, parent=None):
         super().__init__()
         self.wait_condition = wait_condition
         self.mutex = mutex
-        self.floating_yarn = None  # 将在外部设置
+        self.floating_yarn = None
+        self.should_stop = False  # 标志位，表示线程是否应该停止
 
-    def set_floating_yarn(self, floating_yarn):
+    def setFloatingYarn(self, floating_yarn):
         self.floating_yarn = floating_yarn
 
+    def requestInterruption(self):
+        self.should_stop = True
+
     def run(self):
-        """需要在子类中实现具体的线程逻辑"""
-        raise NotImplementedError("Subclasses must implement this method")
+        raise NotImplementedError("Subclasses should implement this!")

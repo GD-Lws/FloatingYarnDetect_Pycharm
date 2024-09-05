@@ -74,7 +74,7 @@ class SQLDialog(QDialog, Ui_Dialog):
             if len(selectArray):
                 for data in selectArray:
                     self.floating_yarn.fySetSQLState(mission=3, byteName=data)
-                time.sleep(0.05)
+                time.sleep(0.5)
                 self.loadSqlData()
                 time.sleep(0.05)
                 self.floating_yarn.fyTrans2Ready()
